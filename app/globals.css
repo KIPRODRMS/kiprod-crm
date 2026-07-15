@@ -213,3 +213,22 @@ select option {
 }
 
 /* KIPROD PROFESSIONAL SELECTS END */
+/* KIPROD SELECT SPACING FIX */
+
+.crm-page-content select {
+  padding-top: 0.7rem !important;
+  padding-right: 2.9rem !important;
+  padding-bottom: 0.7rem !important;
+  padding-left: 1rem !important;
+  line-height: 1.25rem !important;
+  text-align: left !important;
+  text-indent: 0 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-page-content select option {
+  padding: 0.65rem 1rem;
+  line-height: 1.5rem;
+}

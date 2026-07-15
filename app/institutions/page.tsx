@@ -28,19 +28,24 @@ export default async function InstitutionsPage({
 
   const { data: institutions, error } = await supabase
     .from("institutions")
-    .select(
-      `
-        id,
-        name,
-        institution_type,
-        sector,
-        location,
-        status,
-        next_action,
-        next_follow_up_at,
-        created_at
-      `
-    )
+  .select(
+  `
+    id,
+    name,
+    institution_type,
+    sector,
+    segment,
+    tier,
+    asset_size_billions,
+    ceo_name,
+    location,
+    status,
+    outreach_status,
+    next_action,
+    next_follow_up_at,
+    created_at
+  `
+)
     .order("created_at", { ascending: false });
 
   return (

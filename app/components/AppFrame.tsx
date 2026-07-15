@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
+import GlobalSearch from "./GlobalSearch";
 
 type AppFrameProps = {
   children: ReactNode;
@@ -23,23 +24,55 @@ type Identity = {
 };
 
 const navigation = [
-  { label: "Dashboard", href: "/", short: "DB" },
-  { label: "Institutions", href: "/institutions", short: "IN" },
-  { label: "Contacts", href: "/contacts", short: "CO" },
-  { label: "Opportunities", href: "/opportunities", short: "OP" },
-  { label: "Tasks", href: "/tasks", short: "TA" },
-  { label: "Daily & Weekly Reports", href: "/reports", short: "RE" },
-  { label: "KIPROD Academy", href: "/academy", short: "AC" },
+  {
+    label: "Dashboard",
+    href: "/",
+    short: "DB",
+  },
+  {
+    label: "Institutions",
+    href: "/institutions",
+    short: "IN",
+  },
+  {
+    label: "Contacts",
+    href: "/contacts",
+    short: "CO",
+  },
+  {
+    label: "Opportunities",
+    href: "/opportunities",
+    short: "OP",
+  },
+  {
+    label: "Tasks",
+    href: "/tasks",
+    short: "TA",
+  },
+  {
+    label: "Daily & Weekly Reports",
+    href: "/reports",
+    short: "RE",
+  },
+  {
+    label: "KIPROD Academy",
+    href: "/academy",
+    short: "AC",
+  },
 ];
 
 function formatLabel(value: string) {
   return value
     .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase()
+    );
 }
 
 function getPageTitle(pathname: string) {
-  if (pathname.startsWith("/institutions/import")) {
+  if (
+    pathname.startsWith("/institutions/import")
+  ) {
     return "Import Institutions";
   }
 
@@ -79,11 +112,15 @@ function getPageTitle(pathname: string) {
     return "My Profile";
   }
 
-  if (pathname.startsWith("/admin/sacco-import")) {
+  if (
+    pathname.startsWith("/admin/sacco-import")
+  ) {
     return "SACCO Master Import";
   }
 
-  if (pathname.startsWith("/admin/institutions")) {
+  if (
+    pathname.startsWith("/admin/institutions")
+  ) {
     return "Institution Administration";
   }
 
@@ -134,7 +171,9 @@ function NavigationLinks({
             key={item.href}
             href={item.href}
             onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
+            aria-current={
+              active ? "page" : undefined
+            }
             className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold leading-5 transition ${
               active
                 ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/15"
@@ -163,7 +202,9 @@ function NavigationLinks({
           href="/admin"
           onClick={onNavigate}
           aria-current={
-            pathname.startsWith("/admin") ? "page" : undefined
+            pathname.startsWith("/admin")
+              ? "page"
+              : undefined
           }
           className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold leading-5 transition ${
             pathname.startsWith("/admin")
@@ -195,23 +236,40 @@ export default function AppFrame({
 }: AppFrameProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
 
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const supabase = useMemo(
+    () => createClient(),
+    []
+  );
 
-  const [identity, setIdentity] = useState<Identity>({
-    name: "KIPROD Team",
-    email: "",
-    role: "Internal User",
-    rawRole: "",
-  });
+  const profileMenuRef =
+    useRef<HTMLDivElement>(null);
+
+  const [mobileOpen, setMobileOpen] =
+    useState(false);
+
+  const [profileOpen, setProfileOpen] =
+    useState(false);
+
+  const [signingOut, setSigningOut] =
+    useState(false);
+
+  const [
+    checkingSession,
+    setCheckingSession,
+  ] = useState(true);
+
+  const [identity, setIdentity] =
+    useState<Identity>({
+      name: "KIPROD Team",
+      email: "",
+      role: "Internal User",
+      rawRole: "",
+    });
 
   const isPublicRoute =
-    pathname === "/login" || pathname.startsWith("/auth/");
+    pathname === "/login" ||
+    pathname.startsWith("/auth/");
 
   const isAdmin = [
     "super_admin",
@@ -224,7 +282,9 @@ export default function AppFrame({
   }, [pathname]);
 
   useEffect(() => {
-    function closeProfileMenu(event: MouseEvent) {
+    function closeProfileMenu(
+      event: MouseEvent
+    ) {
       if (
         profileMenuRef.current &&
         !profileMenuRef.current.contains(
@@ -256,7 +316,9 @@ export default function AppFrame({
     const previousOverflow =
       document.body.style.overflow;
 
-    function closeOnEscape(event: KeyboardEvent) {
+    function closeOnEscape(
+      event: KeyboardEvent
+    ) {
       if (event.key === "Escape") {
         setMobileOpen(false);
       }
@@ -306,11 +368,12 @@ export default function AppFrame({
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, role")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: profile } =
+        await supabase
+          .from("profiles")
+          .select("full_name, role")
+          .eq("id", user.id)
+          .maybeSingle();
 
       if (!active) {
         return;
@@ -323,10 +386,13 @@ export default function AppFrame({
           profile?.full_name?.trim() ||
           user.email?.split("@")[0] ||
           "KIPROD User",
+
         email: user.email || "",
+
         role: rawRole
           ? formatLabel(rawRole)
           : "Internal User",
+
         rawRole,
       });
 
@@ -350,7 +416,11 @@ export default function AppFrame({
       active = false;
       subscription.unsubscribe();
     };
-  }, [isPublicRoute, router, supabase]);
+  }, [
+    isPublicRoute,
+    router,
+    supabase,
+  ]);
 
   async function handleSignOut() {
     if (signingOut) {
@@ -398,7 +468,8 @@ export default function AppFrame({
     );
   }
 
-  const pageTitle = getPageTitle(pathname);
+  const pageTitle =
+    getPageTitle(pathname);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
@@ -418,7 +489,9 @@ export default function AppFrame({
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <NavigationLinks pathname={pathname} />
+          <NavigationLinks
+            pathname={pathname}
+          />
         </div>
       </aside>
 
@@ -427,7 +500,9 @@ export default function AppFrame({
           <button
             type="button"
             aria-label="Close navigation"
-            onClick={() => setMobileOpen(false)}
+            onClick={() =>
+              setMobileOpen(false)
+            }
             className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
           />
 
@@ -451,7 +526,9 @@ export default function AppFrame({
               <button
                 type="button"
                 aria-label="Close menu"
-                onClick={() => setMobileOpen(false)}
+                onClick={() =>
+                  setMobileOpen(false)
+                }
                 className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-black text-slate-300 transition hover:border-amber-500 hover:text-amber-400"
               >
                 Close
@@ -496,13 +573,15 @@ export default function AppFrame({
 
       <div className="min-h-screen lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:px-8">
-          <div className="flex items-center justify-between gap-2 sm:gap-4">
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 aria-label="Open navigation"
                 aria-expanded={mobileOpen}
-                onClick={() => setMobileOpen(true)}
+                onClick={() =>
+                  setMobileOpen(true)
+                }
                 className="shrink-0 rounded-xl bg-slate-950 px-3 py-2.5 text-xs font-black text-white transition hover:bg-slate-800 lg:hidden"
               >
                 Menu
@@ -513,11 +592,15 @@ export default function AppFrame({
                   KIPROD CRM
                 </p>
 
-                <h2 className="truncate text-base font-black tracking-tight text-slate-950 sm:text-2xl">
+                <h2 className="max-w-32 truncate text-base font-black tracking-tight text-slate-950 sm:max-w-52 sm:text-2xl xl:max-w-64">
                   {pageTitle}
                 </h2>
               </div>
             </div>
+
+            <GlobalSearch
+              isAdmin={isAdmin}
+            />
 
             <div
               ref={profileMenuRef}
@@ -538,7 +621,7 @@ export default function AppFrame({
                   {initials(identity.name)}
                 </span>
 
-                <span className="hidden min-w-0 sm:block">
+                <span className="hidden min-w-0 xl:block">
                   <span className="block max-w-52 truncate text-sm font-black text-slate-950">
                     {identity.name}
                   </span>
@@ -548,8 +631,10 @@ export default function AppFrame({
                   </span>
                 </span>
 
-                <span className="hidden text-xs font-black text-slate-400 sm:block">
-                  {profileOpen ? "▲" : "▼"}
+                <span className="hidden text-xs font-black text-slate-400 xl:block">
+                  {profileOpen
+                    ? "▲"
+                    : "▼"}
                 </span>
               </button>
 
@@ -572,6 +657,9 @@ export default function AppFrame({
                   <div className="p-2">
                     <Link
                       href="/profile"
+                      onClick={() =>
+                        setProfileOpen(false)
+                      }
                       className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
                     >
                       My Profile
@@ -579,6 +667,9 @@ export default function AppFrame({
 
                     <Link
                       href="/change-password"
+                      onClick={() =>
+                        setProfileOpen(false)
+                      }
                       className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
                     >
                       Change Password
@@ -587,6 +678,9 @@ export default function AppFrame({
                     {isAdmin && (
                       <Link
                         href="/admin"
+                        onClick={() =>
+                          setProfileOpen(false)
+                        }
                         className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-amber-50 hover:text-amber-800"
                       >
                         Super Admin Centre
