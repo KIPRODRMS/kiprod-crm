@@ -1,7 +1,8 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createContact } from "./actions";
+import ContactDirectory from "./ContactDirectory";
 
 type ContactsPageProps = {
   searchParams: Promise<{
@@ -69,7 +70,7 @@ export default async function ContactsPage({
               href="/"
               className="text-sm font-bold text-amber-700 hover:text-amber-600"
             >
-              ← CRM Dashboard
+              â† CRM Dashboard
             </Link>
 
             <h1 className="mt-2 text-3xl font-black tracking-tight">
@@ -370,97 +371,14 @@ export default async function ContactsPage({
           )}
 
           {contacts && contacts.length > 0 && (
-            <div className="grid gap-5 bg-slate-50/70 p-6 md:grid-cols-2">
-              {contacts.map((contact) => {
-                const institutionName =
-                  institutionMap.get(contact.institution_id) ||
-                  "Unknown institution";
-
-                const whatsappNumber = cleanPhoneNumber(
-                  contact.whatsapp_number
-                );
-
-                return (
-                  <article
-                    key={contact.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-lg font-black text-slate-950">
-                          {contact.full_name}
-                        </h3>
-
-                        <p className="mt-1 text-sm font-semibold text-slate-600">
-                          {contact.job_title || "Role not recorded"}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {contact.is_primary && (
-                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
-                            Primary
-                          </span>
-                        )}
-
-                        {contact.decision_maker && (
-                          <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">
-                            Decision-maker
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <Link
-                      href={`/institutions/${contact.institution_id}`}
-                      className="mt-4 block rounded-xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
-                    >
-                      {institutionName} →
-                    </Link>
-
-                    {contact.department && (
-                      <p className="mt-4 text-xs font-bold uppercase tracking-wide text-slate-400">
-                        {contact.department}
-                      </p>
-                    )}
-
-                    <div className="mt-4 space-y-2 text-sm">
-                      {contact.email && (
-                        <a
-                          href={`mailto:${contact.email}`}
-                          className="block break-all font-semibold text-amber-700 hover:underline"
-                        >
-                          {contact.email}
-                        </a>
-                      )}
-
-                      {contact.phone && (
-                        <a
-                          href={`tel:${contact.phone}`}
-                          className="block font-semibold text-slate-700 hover:text-slate-950"
-                        >
-                          {contact.phone}
-                        </a>
-                      )}
-                    </div>
-
-                    {whatsappNumber && (
-                      <a
-                        href={`https://wa.me/${whatsappNumber}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-5 block rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-black text-emerald-800 transition hover:bg-emerald-100"
-                      >
-                        Open WhatsApp
-                      </a>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
+            <ContactDirectory
+              contacts={contacts}
+              institutionNames={Object.fromEntries(institutionMap)}
+            />
           )}
         </section>
       </div>
     </main>
   );
 }
+
