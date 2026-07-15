@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import InstitutionDirectory from "./InstitutionDirectory";
 import { createInstitution } from "./actions";
 
 type InstitutionsPageProps = {

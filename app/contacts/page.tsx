@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createContact } from "./actions";
-import ContactDirectory from "./ContactDirectory";
+import FilteredContactDirectory from "./FilteredContactDirectory";
 
 type ContactsPageProps = {
   searchParams: Promise<{
@@ -371,10 +371,10 @@ export default async function ContactsPage({
           )}
 
           {contacts && contacts.length > 0 && (
-            <ContactDirectory
-              contacts={contacts}
-              institutionNames={Object.fromEntries(institutionMap)}
-            />
+         <FilteredContactDirectory
+  contacts={contacts}
+  institutionNames={Object.fromEntries(institutionMap)}
+/>
           )}
         </section>
       </div>
