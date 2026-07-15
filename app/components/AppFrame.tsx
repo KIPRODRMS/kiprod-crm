@@ -226,17 +226,7 @@ export default function AppFrame({ children }: AppFrameProps) {
           <NavigationLinks pathname={pathname} />
         </div>
 
-        <div className="border-t border-slate-800 px-5 py-4">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-            Signed in
-          </p>
-          <p className="mt-2 truncate text-sm font-black text-white">
-            {identity.name}
-          </p>
-          <p className="mt-1 truncate text-xs text-slate-400">
-            {identity.role}
-          </p>
-        </div>
+
       </aside>
 
       {mobileOpen && (
@@ -392,4 +382,5 @@ export default function AppFrame({ children }: AppFrameProps) {
     </div>
   );
 }
+
 
