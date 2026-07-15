@@ -1,29 +1,40 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 const tools = [
   {
+    title: "SACCO Master Import",
+    description:
+      "Import the confirmed 174 SACCO institutions, contacts and historical outreach records.",
+    href: "/admin/sacco-import",
+    label: "Open SACCO Import",
+  },
+  {
+    title: "Institution Management",
+    description:
+      "Search, filter and edit institutional records, tiers, contacts and follow-ups.",
+    href: "/admin/institutions",
+    label: "Manage Institutions",
+  },
+  {
     title: "Reports Review",
-    description: "Review daily and weekly staff reports and monitor delivery.",
+    description:
+      "Review daily and weekly staff reports and monitor delivery.",
     href: "/reports",
     label: "Open Reports",
   },
   {
     title: "Academy Administration",
-    description: "Create courses, modules, lessons and staff enrolments.",
+    description:
+      "Create courses, modules, lessons and staff enrolments.",
     href: "/academy",
     label: "Open Academy",
   },
   {
-    title: "Institution Management",
-    description: "Review institutional records, assignments and follow-ups.",
-    href: "/institutions",
-    label: "Open Institutions",
-  },
-  {
     title: "Pipeline Oversight",
-    description: "Monitor active opportunities, value and engagement stages.",
+    description:
+      "Monitor active opportunities, value and engagement stages.",
     href: "/opportunities",
     label: "Open Opportunities",
   },
@@ -62,15 +73,15 @@ export default async function AdminPage() {
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
           Management controls for KIPROD CRM operations, reporting,
-          institutional pipeline and internal capability development.
+          institutional data and internal capability development.
         </p>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {tools.map((tool) => (
           <article
             key={tool.title}
-            className="flex min-h-60 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-lg"
+            className="flex min-h-56 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-lg"
           >
             <p className="text-xs font-black uppercase tracking-wide text-amber-700">
               Admin Tool
@@ -99,12 +110,10 @@ export default async function AdminPage() {
           User and Role Management
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          The next control to build is a dedicated area for creating employee
-          accounts, assigning roles, deactivating users and controlling access
-          to management-only information.
+          The next control will create employee accounts, assign roles,
+          deactivate users and control management-only access.
         </p>
       </article>
     </section>
   );
 }
-

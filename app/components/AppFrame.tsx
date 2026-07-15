@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -49,6 +49,9 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/academy")) return "KIPROD Academy";
   if (pathname.startsWith("/change-password")) return "Change Password";
   if (pathname.startsWith("/profile")) return "My Profile";
+  if (pathname.startsWith("/admin/sacco-import")) return "SACCO Master Import";
+  if (pathname.startsWith("/admin/institutions")) return "Institution Administration";
+  if (pathname.startsWith("/admin/contacts")) return "Contact Administration";
   if (pathname.startsWith("/admin")) return "Super Admin Centre";
   return "Dashboard";
 }
