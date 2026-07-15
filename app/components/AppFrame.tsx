@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -12,7 +17,9 @@ type AppFrameProps = {
 
 type Identity = {
   name: string;
+  email: string;
   role: string;
+  rawRole: string;
 };
 
 const navigation = [
@@ -40,7 +47,21 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/tasks")) return "Tasks";
   if (pathname.startsWith("/reports")) return "Daily & Weekly Reports";
   if (pathname.startsWith("/academy")) return "KIPROD Academy";
+  if (pathname.startsWith("/change-password")) return "Change Password";
+  if (pathname.startsWith("/profile")) return "My Profile";
+  if (pathname.startsWith("/admin")) return "Super Admin Centre";
   return "Dashboard";
+}
+
+function initials(name: string) {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return letters || "KR";
 }
 
 function NavigationLinks({
@@ -90,19 +111,46 @@ export default function AppFrame({ children }: AppFrameProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [identity, setIdentity] = useState<Identity>({
     name: "KIPROD Team",
+    email: "",
     role: "Internal User",
+    rawRole: "",
   });
 
   const isPublicRoute =
     pathname === "/login" || pathname.startsWith("/auth/");
 
+  const isAdmin = ["super_admin", "management"].includes(
+    identity.rawRole
+  );
+
   useEffect(() => {
     setMobileOpen(false);
+    setProfileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    function closeProfileMenu(event: MouseEvent) {
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(event.target as Node)
+      ) {
+        setProfileOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", closeProfileMenu);
+
+    return () => {
+      document.removeEventListener("mousedown", closeProfileMenu);
+    };
+  }, []);
 
   useEffect(() => {
     if (isPublicRoute) return;
@@ -124,12 +172,16 @@ export default function AppFrame({ children }: AppFrameProps) {
 
       if (!active) return;
 
+      const rawRole = profile?.role || "";
+
       setIdentity({
         name:
           profile?.full_name?.trim() ||
           user.email?.split("@")[0] ||
           "KIPROD User",
-        role: profile?.role ? formatLabel(profile.role) : "Internal User",
+        email: user.email || "",
+        role: rawRole ? formatLabel(rawRole) : "Internal User",
+        rawRole,
       });
     }
 
@@ -160,7 +212,11 @@ export default function AppFrame({ children }: AppFrameProps) {
           <p className="text-xs font-black tracking-[0.32em] text-amber-500">
             KIPROD
           </p>
-          <h1 className="mt-3 text-xl font-black">Institutional Growth Hub</h1>
+
+          <h1 className="mt-3 text-xl font-black">
+            Institutional Growth Hub
+          </h1>
+
           <p className="mt-2 text-xs leading-5 text-slate-400">
             Partnerships and Acquisition CRM
           </p>
@@ -170,23 +226,16 @@ export default function AppFrame({ children }: AppFrameProps) {
           <NavigationLinks pathname={pathname} />
         </div>
 
-        <div className="border-t border-slate-800 p-4">
-          <div className="rounded-2xl bg-slate-900 p-4">
-            <p className="truncate text-sm font-black text-white">
-              {identity.name}
-            </p>
-            <p className="mt-1 truncate text-xs text-slate-400">
-              {identity.role}
-            </p>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={signingOut}
-              className="mt-4 w-full rounded-xl border border-slate-700 px-3 py-2.5 text-xs font-black text-slate-200 transition hover:border-amber-500 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {signingOut ? "Signing out..." : "Sign out"}
-            </button>
-          </div>
+        <div className="border-t border-slate-800 px-5 py-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+            Signed in
+          </p>
+          <p className="mt-2 truncate text-sm font-black text-white">
+            {identity.name}
+          </p>
+          <p className="mt-1 truncate text-xs text-slate-400">
+            {identity.role}
+          </p>
         </div>
       </aside>
 
@@ -205,8 +254,11 @@ export default function AppFrame({ children }: AppFrameProps) {
                 <p className="text-xs font-black tracking-[0.3em] text-amber-500">
                   KIPROD
                 </p>
-                <p className="mt-2 font-black">Institutional Growth Hub</p>
+                <p className="mt-2 font-black">
+                  Institutional Growth Hub
+                </p>
               </div>
+
               <button
                 type="button"
                 aria-label="Close menu"
@@ -222,21 +274,6 @@ export default function AppFrame({ children }: AppFrameProps) {
                 pathname={pathname}
                 onNavigate={() => setMobileOpen(false)}
               />
-            </div>
-
-            <div className="border-t border-slate-800 p-4">
-              <p className="truncate text-sm font-black">{identity.name}</p>
-              <p className="mt-1 truncate text-xs text-slate-400">
-                {identity.role}
-              </p>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={signingOut}
-                className="mt-4 w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-60"
-              >
-                {signingOut ? "Signing out..." : "Sign out"}
-              </button>
             </div>
           </aside>
         </div>
@@ -254,23 +291,94 @@ export default function AppFrame({ children }: AppFrameProps) {
               >
                 Menu
               </button>
+
               <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">
                   KIPROD CRM
                 </p>
+
                 <h2 className="truncate text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
                   {pageTitle}
                 </h2>
               </div>
             </div>
 
-            <div className="hidden text-right sm:block">
-              <p className="max-w-52 truncate text-sm font-black text-slate-950">
-                {identity.name}
-              </p>
-              <p className="mt-0.5 max-w-52 truncate text-xs text-slate-500">
-                {identity.role}
-              </p>
+            <div ref={profileMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setProfileOpen((current) => !current)}
+                aria-expanded={profileOpen}
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-2.5 py-2 text-left transition hover:border-amber-400 hover:bg-amber-50 sm:px-3"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-xs font-black text-amber-400">
+                  {initials(identity.name)}
+                </span>
+
+                <span className="hidden min-w-0 sm:block">
+                  <span className="block max-w-52 truncate text-sm font-black text-slate-950">
+                    {identity.name}
+                  </span>
+                  <span className="mt-0.5 block max-w-52 truncate text-xs text-slate-500">
+                    {identity.role}
+                  </span>
+                </span>
+
+                <span className="hidden text-xs font-black text-slate-400 sm:block">
+                  {profileOpen ? "▲" : "▼"}
+                </span>
+              </button>
+
+              {profileOpen && (
+                <div className="absolute right-0 mt-3 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/15">
+                  <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                    <p className="truncate text-sm font-black text-slate-950">
+                      {identity.name}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {identity.email}
+                    </p>
+                    <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800">
+                      {identity.role}
+                    </span>
+                  </div>
+
+                  <div className="p-2">
+                    <Link
+                      href="/profile"
+                      className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+                    >
+                      My Profile
+                    </Link>
+
+                    <Link
+                      href="/change-password"
+                      className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+                    >
+                      Change Password
+                    </Link>
+
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-amber-50 hover:text-amber-800"
+                      >
+                        Super Admin Centre
+                      </Link>
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-200 p-2">
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      disabled={signingOut}
+                      className="w-full rounded-xl px-4 py-3 text-left text-sm font-black text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {signingOut ? "Signing out..." : "Sign out"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
