@@ -89,7 +89,7 @@ export default async function ContactsPage({
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl items-start gap-8 px-6 py-8 lg:grid-cols-[400px_minmax(0,1fr)] lg:px-10">
+      <div className="mx-auto grid max-w-7xl items-start gap-8 px-6 py-8 xl:grid-cols-[340px_minmax(0,1fr)] lg:px-10">
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5">
           <div className="border-b border-slate-800 bg-slate-950 px-6 py-5 text-white">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
@@ -381,4 +381,5 @@ export default async function ContactsPage({
     </main>
   );
 }
+
 

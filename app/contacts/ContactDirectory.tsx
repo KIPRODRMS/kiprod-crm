@@ -37,16 +37,21 @@ function initials(value: string) {
 
 function normaliseWhatsApp(value: string | null) {
   if (!value) return "";
-
   const digits = value.replace(/[^\d]/g, "");
-
   if (digits.startsWith("254")) return digits;
   if (digits.startsWith("0")) return `254${digits.slice(1)}`;
   if ((digits.startsWith("7") || digits.startsWith("1")) && digits.length === 9) {
     return `254${digits}`;
   }
-
   return digits;
+}
+
+function ActionIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70">
+      {children}
+    </span>
+  );
 }
 
 export default function ContactDirectory({
@@ -55,15 +60,14 @@ export default function ContactDirectory({
 }: ContactDirectoryProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [notice, setNotice] = useState("");
 
   const filteredContacts = useMemo(() => {
     const search = query.trim().toLowerCase();
-
     if (!search) return contacts;
 
     return contacts.filter((contact) => {
-      const institution =
-        institutionNames[contact.institution_id] || "";
+      const institution = institutionNames[contact.institution_id] || "";
 
       return [
         contact.full_name,
@@ -75,9 +79,7 @@ export default function ContactDirectory({
         institution,
       ]
         .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(search)
-        );
+        .some((value) => String(value).toLowerCase().includes(search));
     });
   }, [contacts, institutionNames, query]);
 
@@ -97,10 +99,43 @@ export default function ContactDirectory({
     setPage(1);
   }
 
+  async function copyValue(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textArea = document.createElement("textarea");
+      textArea.value = value;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      textArea.remove();
+    }
+
+    setNotice(`${label} copied`);
+    window.setTimeout(() => setNotice(""), 2200);
+  }
+
+  async function launchWithCopy(
+    href: string,
+    value: string,
+    label: string
+  ) {
+    await copyValue(value, label);
+    window.location.href = href;
+  }
+
   return (
-    <div>
+    <div className="relative">
+      {notice && (
+        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full bg-slate-950 px-4 py-2.5 text-xs font-black text-white shadow-2xl lg:left-auto lg:right-6 lg:translate-x-0">
+          {notice}
+        </div>
+      )}
+
       <div className="border-b border-slate-200 p-4 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
               Contact Directory
@@ -110,13 +145,13 @@ export default function ContactDirectory({
             </h2>
           </div>
 
-          <div className="w-full max-w-xl">
+          <div className="w-full xl:max-w-md">
             <input
               type="search"
               value={query}
               onChange={(event) => updateSearch(event.target.value)}
               placeholder="Search name, institution, phone or email..."
-              className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-amber-500"
+              className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
             />
           </div>
         </div>
@@ -145,45 +180,41 @@ export default function ContactDirectory({
             return (
               <article
                 key={contact.id}
-                className="flex flex-col gap-3 px-4 py-3 transition hover:bg-slate-50 sm:px-5 lg:flex-row lg:items-center"
+                className="grid grid-cols-[44px_minmax(0,1fr)] gap-x-3 gap-y-3 px-4 py-4 transition hover:bg-slate-50 sm:px-5 2xl:grid-cols-[44px_minmax(220px,1.1fr)_minmax(170px,0.75fr)_auto] 2xl:items-center"
               >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-black text-amber-400">
-                    {initials(contact.full_name)}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <Link
-                        href={`/contacts/${contact.id}`}
-                        className="truncate text-sm font-black text-slate-950 hover:text-amber-700"
-                      >
-                        {contact.full_name}
-                      </Link>
-
-                      {contact.is_primary && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">
-                          Primary
-                        </span>
-                      )}
-
-                      {contact.decision_maker && (
-                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-black text-white">
-                          Decision-maker
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="mt-0.5 truncate text-xs text-slate-500">
-                      {contact.job_title || "Role not recorded"}
-                      {contact.department
-                        ? ` · ${contact.department}`
-                        : ""}
-                    </p>
-                  </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-950 text-xs font-black text-amber-400">
+                  {initials(contact.full_name)}
                 </div>
 
-                <div className="min-w-0 lg:w-56">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <Link
+                      href={`/contacts/${contact.id}`}
+                      className="truncate text-sm font-black text-slate-950 hover:text-amber-700"
+                    >
+                      {contact.full_name}
+                    </Link>
+
+                    {contact.is_primary && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800">
+                        Primary
+                      </span>
+                    )}
+
+                    {contact.decision_maker && (
+                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[9px] font-black text-white">
+                        Decision-maker
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-1 truncate text-xs text-slate-500">
+                    {contact.job_title || "Role not recorded"}
+                    {contact.department ? ` · ${contact.department}` : ""}
+                  </p>
+                </div>
+
+                <div className="col-start-2 min-w-0 2xl:col-start-auto">
                   <Link
                     href={`/institutions/${contact.institution_id}`}
                     className="block truncate text-xs font-black text-slate-700 hover:text-amber-700"
@@ -191,29 +222,85 @@ export default function ContactDirectory({
                     {institutionName}
                   </Link>
 
-                  <p className="mt-0.5 truncate text-xs text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const value = contact.phone || contact.email;
+                      if (value) {
+                        void copyValue(
+                          value,
+                          contact.phone ? "Phone number" : "Email"
+                        );
+                      }
+                    }}
+                    className="mt-1 block max-w-full truncate text-left text-xs text-slate-400 transition hover:text-slate-700"
+                    title="Click to copy"
+                  >
                     {contact.phone ||
                       contact.email ||
                       "No contact channel recorded"}
-                  </p>
+                  </button>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+                <div className="col-span-2 flex flex-wrap gap-2 border-t border-slate-100 pt-3 2xl:col-span-1 2xl:border-0 2xl:pt-0">
                   {contact.phone && (
                     <>
-                      <a
-                        href={`tel:${contact.phone}`}
-                        className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-200"
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void launchWithCopy(
+                            `tel:${contact.phone}`,
+                            contact.phone!,
+                            "Phone number"
+                          )
+                        }
+                        className="flex items-center gap-2 rounded-xl bg-slate-100 px-2.5 py-2 text-[10px] font-black text-slate-700 transition hover:bg-slate-200"
+                        title="Call and copy phone number"
                       >
+                        <ActionIcon>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6.6 10.8a15.5 15.5 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11 11 0 0 0 3.45.55 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.5 21 3 13.5 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11 11 0 0 0 .55 3.45 1 1 0 0 1-.25 1Z" />
+                          </svg>
+                        </ActionIcon>
                         Call
-                      </a>
+                      </button>
 
-                      <a
-                        href={`sms:${contact.phone}`}
-                        className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-200"
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void launchWithCopy(
+                            `sms:${contact.phone}`,
+                            contact.phone!,
+                            "Phone number"
+                          )
+                        }
+                        className="flex items-center gap-2 rounded-xl bg-slate-100 px-2.5 py-2 text-[10px] font-black text-slate-700 transition hover:bg-slate-200"
+                        title="Send SMS and copy phone number"
                       >
+                        <ActionIcon>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+                          </svg>
+                        </ActionIcon>
                         SMS
-                      </a>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void copyValue(contact.phone!, "Phone number")
+                        }
+                        className="flex items-center gap-2 rounded-xl bg-slate-100 px-2.5 py-2 text-[10px] font-black text-slate-700 transition hover:bg-slate-200"
+                        title="Copy phone number"
+                      >
+                        <ActionIcon>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="9" y="9" width="11" height="11" rx="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </ActionIcon>
+                        Copy
+                      </button>
                     </>
                   )}
 
@@ -222,25 +309,51 @@ export default function ContactDirectory({
                       href={`https://wa.me/${whatsappNumber}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-800 hover:bg-emerald-100"
+                      className="flex items-center gap-2 rounded-xl bg-emerald-50 px-2.5 py-2 text-[10px] font-black text-emerald-800 transition hover:bg-emerald-100"
                     >
+                      <ActionIcon>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20 11.5a8 8 0 0 1-11.8 7L3 20l1.5-5.1A8 8 0 1 1 20 11.5Z" />
+                          <path d="M8.5 8.5c.5 3 2 4.5 5 5" />
+                        </svg>
+                      </ActionIcon>
                       WhatsApp
                     </a>
                   )}
 
                   {contact.email && (
-                    <a
-                      href={`mailto:${contact.email}`}
-                      className="rounded-lg bg-blue-50 px-3 py-2 text-[11px] font-black text-blue-800 hover:bg-blue-100"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void launchWithCopy(
+                          `mailto:${contact.email}`,
+                          contact.email!,
+                          "Email"
+                        )
+                      }
+                      className="flex items-center gap-2 rounded-xl bg-blue-50 px-2.5 py-2 text-[10px] font-black text-blue-800 transition hover:bg-blue-100"
+                      title="Open email and copy address"
                     >
+                      <ActionIcon>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <path d="m3 7 9 6 9-6" />
+                        </svg>
+                      </ActionIcon>
                       Email
-                    </a>
+                    </button>
                   )}
 
                   <Link
                     href={`/contacts/${contact.id}`}
-                    className="rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white hover:bg-slate-800"
+                    className="flex items-center gap-2 rounded-xl bg-slate-950 px-2.5 py-2 text-[10px] font-black text-white transition hover:bg-slate-800"
                   >
+                    <ActionIcon>
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                        <circle cx="12" cy="12" r="2.5" />
+                      </svg>
+                    </ActionIcon>
                     View
                   </Link>
                 </div>
