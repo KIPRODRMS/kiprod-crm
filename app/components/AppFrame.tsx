@@ -39,20 +39,62 @@ function formatLabel(value: string) {
 }
 
 function getPageTitle(pathname: string) {
-  if (pathname.startsWith("/institutions/import")) return "Import Institutions";
-  if (pathname.startsWith("/institutions/")) return "Institution Profile";
-  if (pathname.startsWith("/institutions")) return "Institutions";
-  if (pathname.startsWith("/contacts")) return "Contacts";
-  if (pathname.startsWith("/opportunities")) return "Opportunities";
-  if (pathname.startsWith("/tasks")) return "Tasks";
-  if (pathname.startsWith("/reports")) return "Daily & Weekly Reports";
-  if (pathname.startsWith("/academy")) return "KIPROD Academy";
-  if (pathname.startsWith("/change-password")) return "Change Password";
-  if (pathname.startsWith("/profile")) return "My Profile";
-  if (pathname.startsWith("/admin/sacco-import")) return "SACCO Master Import";
-  if (pathname.startsWith("/admin/institutions")) return "Institution Administration";
-  if (pathname.startsWith("/admin/contacts")) return "Contact Administration";
-  if (pathname.startsWith("/admin")) return "Super Admin Centre";
+  if (pathname.startsWith("/institutions/import")) {
+    return "Import Institutions";
+  }
+
+  if (pathname.startsWith("/institutions/")) {
+    return "Institution Profile";
+  }
+
+  if (pathname.startsWith("/institutions")) {
+    return "Institutions";
+  }
+
+  if (pathname.startsWith("/contacts")) {
+    return "Contacts";
+  }
+
+  if (pathname.startsWith("/opportunities")) {
+    return "Opportunities";
+  }
+
+  if (pathname.startsWith("/tasks")) {
+    return "Tasks";
+  }
+
+  if (pathname.startsWith("/reports")) {
+    return "Daily & Weekly Reports";
+  }
+
+  if (pathname.startsWith("/academy")) {
+    return "KIPROD Academy";
+  }
+
+  if (pathname.startsWith("/change-password")) {
+    return "Change Password";
+  }
+
+  if (pathname.startsWith("/profile")) {
+    return "My Profile";
+  }
+
+  if (pathname.startsWith("/admin/sacco-import")) {
+    return "SACCO Master Import";
+  }
+
+  if (pathname.startsWith("/admin/institutions")) {
+    return "Institution Administration";
+  }
+
+  if (pathname.startsWith("/admin/contacts")) {
+    return "Contact Administration";
+  }
+
+  if (pathname.startsWith("/admin")) {
+    return "Super Admin Centre";
+  }
+
   return "Dashboard";
 }
 
@@ -70,12 +112,17 @@ function initials(name: string) {
 function NavigationLinks({
   pathname,
   onNavigate,
+  showAdmin = false,
 }: {
   pathname: string;
   onNavigate?: () => void;
+  showAdmin?: boolean;
 }) {
   return (
-    <nav className="space-y-1.5 px-4 py-5">
+    <nav
+      className="space-y-1.5 px-4 py-5"
+      aria-label="Primary navigation"
+    >
       {navigation.map((item) => {
         const active =
           item.href === "/"
@@ -87,7 +134,8 @@ function NavigationLinks({
             key={item.href}
             href={item.href}
             onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition ${
+            aria-current={active ? "page" : undefined}
+            className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold leading-5 transition ${
               active
                 ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/15"
                 : "text-slate-300 hover:bg-slate-900 hover:text-white"
@@ -102,15 +150,49 @@ function NavigationLinks({
             >
               {item.short}
             </span>
-            <span>{item.label}</span>
+
+            <span className="min-w-0 whitespace-normal break-words">
+              {item.label}
+            </span>
           </Link>
         );
       })}
+
+      {showAdmin && (
+        <Link
+          href="/admin"
+          onClick={onNavigate}
+          aria-current={
+            pathname.startsWith("/admin") ? "page" : undefined
+          }
+          className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold leading-5 transition ${
+            pathname.startsWith("/admin")
+              ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/15"
+              : "text-slate-300 hover:bg-slate-900 hover:text-white"
+          }`}
+        >
+          <span
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-black tracking-wider ${
+              pathname.startsWith("/admin")
+                ? "bg-slate-950 text-amber-400"
+                : "bg-slate-900 text-slate-400"
+            }`}
+          >
+            SA
+          </span>
+
+          <span className="min-w-0 whitespace-normal break-words">
+            Super Admin Centre
+          </span>
+        </Link>
+      )}
     </nav>
   );
 }
 
-export default function AppFrame({ children }: AppFrameProps) {
+export default function AppFrame({
+  children,
+}: AppFrameProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -119,6 +201,8 @@ export default function AppFrame({ children }: AppFrameProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
   const [identity, setIdentity] = useState<Identity>({
     name: "KIPROD Team",
     email: "",
@@ -129,9 +213,10 @@ export default function AppFrame({ children }: AppFrameProps) {
   const isPublicRoute =
     pathname === "/login" || pathname.startsWith("/auth/");
 
-  const isAdmin = ["super_admin", "management"].includes(
-    identity.rawRole
-  );
+  const isAdmin = [
+    "super_admin",
+    "management",
+  ].includes(identity.rawRole);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -142,30 +227,84 @@ export default function AppFrame({ children }: AppFrameProps) {
     function closeProfileMenu(event: MouseEvent) {
       if (
         profileMenuRef.current &&
-        !profileMenuRef.current.contains(event.target as Node)
+        !profileMenuRef.current.contains(
+          event.target as Node
+        )
       ) {
         setProfileOpen(false);
       }
     }
 
-    document.addEventListener("mousedown", closeProfileMenu);
+    document.addEventListener(
+      "mousedown",
+      closeProfileMenu
+    );
 
     return () => {
-      document.removeEventListener("mousedown", closeProfileMenu);
+      document.removeEventListener(
+        "mousedown",
+        closeProfileMenu
+      );
     };
   }, []);
 
   useEffect(() => {
-    if (isPublicRoute) return;
+    if (!mobileOpen) {
+      return;
+    }
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+
+    document.addEventListener(
+      "keydown",
+      closeOnEscape
+    );
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+
+      document.removeEventListener(
+        "keydown",
+        closeOnEscape
+      );
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (isPublicRoute) {
+      setCheckingSession(false);
+      return;
+    }
 
     let active = true;
 
     async function loadIdentity() {
+      setCheckingSession(true);
+
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
 
-      if (!user || !active) return;
+      if (!active) {
+        return;
+      }
+
+      if (authError || !user) {
+        router.replace("/login");
+        router.refresh();
+        return;
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -173,7 +312,9 @@ export default function AppFrame({ children }: AppFrameProps) {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!active) return;
+      if (!active) {
+        return;
+      }
 
       const rawRole = profile?.role || "";
 
@@ -183,27 +324,78 @@ export default function AppFrame({ children }: AppFrameProps) {
           user.email?.split("@")[0] ||
           "KIPROD User",
         email: user.email || "",
-        role: rawRole ? formatLabel(rawRole) : "Internal User",
+        role: rawRole
+          ? formatLabel(rawRole)
+          : "Internal User",
         rawRole,
       });
+
+      setCheckingSession(false);
     }
 
     void loadIdentity();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!session && active) {
+          router.replace("/login");
+          router.refresh();
+        }
+      }
+    );
+
     return () => {
       active = false;
+      subscription.unsubscribe();
     };
-  }, [isPublicRoute, supabase]);
+  }, [isPublicRoute, router, supabase]);
 
   async function handleSignOut() {
+    if (signingOut) {
+      return;
+    }
+
     setSigningOut(true);
-    await supabase.auth.signOut();
-    router.push("/login");
+    setProfileOpen(false);
+    setMobileOpen(false);
+
+    const { error } =
+      await supabase.auth.signOut();
+
+    if (error) {
+      console.error(
+        "KIPROD CRM sign-out failed:",
+        error.message
+      );
+
+      setSigningOut(false);
+      return;
+    }
+
+    router.replace("/login");
     router.refresh();
   }
 
   if (isPublicRoute) {
     return children;
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
+        <div className="text-center">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-amber-500">
+            KIPROD CRM
+          </p>
+
+          <p className="mt-3 text-sm font-bold text-slate-300">
+            Loading workspace...
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const pageTitle = getPageTitle(pathname);
@@ -228,8 +420,6 @@ export default function AppFrame({ children }: AppFrameProps) {
         <div className="flex-1 overflow-y-auto">
           <NavigationLinks pathname={pathname} />
         </div>
-
-
       </aside>
 
       {mobileOpen && (
@@ -241,13 +431,19 @@ export default function AppFrame({ children }: AppFrameProps) {
             className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
           />
 
-          <aside className="relative flex h-full w-[86%] max-w-sm flex-col bg-slate-950 text-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-800 px-5 py-5">
-              <div>
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile navigation"
+            className="relative flex h-full w-[88vw] max-w-sm flex-col overflow-hidden bg-slate-950 text-white shadow-2xl"
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-800 px-5 py-5">
+              <div className="min-w-0">
                 <p className="text-xs font-black tracking-[0.3em] text-amber-500">
-                  KIPROD
+                  KIPROD CRM
                 </p>
-                <p className="mt-2 font-black">
+
+                <p className="mt-2 break-words font-black leading-5">
                   Institutional Growth Hub
                 </p>
               </div>
@@ -256,52 +452,87 @@ export default function AppFrame({ children }: AppFrameProps) {
                 type="button"
                 aria-label="Close menu"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-black text-slate-300"
+                className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-black text-slate-300 transition hover:border-amber-500 hover:text-amber-400"
               >
                 Close
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <NavigationLinks
                 pathname={pathname}
-                onNavigate={() => setMobileOpen(false)}
+                onNavigate={() =>
+                  setMobileOpen(false)
+                }
+                showAdmin={isAdmin}
               />
+            </div>
+
+            <div className="shrink-0 border-t border-slate-800 bg-slate-950 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+              <div className="mb-3 rounded-xl bg-slate-900 px-4 py-3">
+                <p className="truncate text-sm font-black text-white">
+                  {identity.name}
+                </p>
+
+                <p className="mt-1 truncate text-xs text-slate-400">
+                  {identity.role}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="w-full rounded-xl border border-red-900/70 bg-red-950/40 px-4 py-3 text-left text-sm font-black text-red-300 transition hover:border-red-700 hover:bg-red-950/70 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {signingOut
+                  ? "Signing out..."
+                  : "Sign out"}
+              </button>
             </div>
           </aside>
         </div>
       )}
 
       <div className="min-h-screen lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-4 shadow-sm backdrop-blur sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:px-8">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 aria-label="Open navigation"
+                aria-expanded={mobileOpen}
                 onClick={() => setMobileOpen(true)}
-                className="rounded-xl bg-slate-950 px-3 py-2.5 text-xs font-black text-white lg:hidden"
+                className="shrink-0 rounded-xl bg-slate-950 px-3 py-2.5 text-xs font-black text-white transition hover:bg-slate-800 lg:hidden"
               >
                 Menu
               </button>
 
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">
+                <p className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700 sm:text-xs sm:tracking-[0.18em]">
                   KIPROD CRM
                 </p>
 
-                <h2 className="truncate text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
+                <h2 className="truncate text-base font-black tracking-tight text-slate-950 sm:text-2xl">
                   {pageTitle}
                 </h2>
               </div>
             </div>
 
-            <div ref={profileMenuRef} className="relative">
+            <div
+              ref={profileMenuRef}
+              className="relative shrink-0"
+            >
               <button
                 type="button"
-                onClick={() => setProfileOpen((current) => !current)}
+                onClick={() =>
+                  setProfileOpen(
+                    (current) => !current
+                  )
+                }
+                aria-label="Open profile menu"
                 aria-expanded={profileOpen}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-2.5 py-2 text-left transition hover:border-amber-400 hover:bg-amber-50 sm:px-3"
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-2 py-2 text-left transition hover:border-amber-400 hover:bg-amber-50 sm:px-3"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-xs font-black text-amber-400">
                   {initials(identity.name)}
@@ -311,6 +542,7 @@ export default function AppFrame({ children }: AppFrameProps) {
                   <span className="block max-w-52 truncate text-sm font-black text-slate-950">
                     {identity.name}
                   </span>
+
                   <span className="mt-0.5 block max-w-52 truncate text-xs text-slate-500">
                     {identity.role}
                   </span>
@@ -322,14 +554,16 @@ export default function AppFrame({ children }: AppFrameProps) {
               </button>
 
               {profileOpen && (
-                <div className="absolute right-0 mt-3 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/15">
+                <div className="absolute right-0 mt-3 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/15">
                   <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
                     <p className="truncate text-sm font-black text-slate-950">
                       {identity.name}
                     </p>
+
                     <p className="mt-1 truncate text-xs text-slate-500">
                       {identity.email}
                     </p>
+
                     <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800">
                       {identity.role}
                     </span>
@@ -367,7 +601,9 @@ export default function AppFrame({ children }: AppFrameProps) {
                       disabled={signingOut}
                       className="w-full rounded-xl px-4 py-3 text-left text-sm font-black text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {signingOut ? "Signing out..." : "Sign out"}
+                      {signingOut
+                        ? "Signing out..."
+                        : "Sign out"}
                     </button>
                   </div>
                 </div>
@@ -385,5 +621,3 @@ export default function AppFrame({ children }: AppFrameProps) {
     </div>
   );
 }
-
-
