@@ -1,228 +1,509 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireSuperAdmin } from "@/lib/auth";
+import BulkInstitutionAssignment from "./BulkInstitutionAssignment";
 
-type AdminInstitutionsPageProps = {
+type PageProps = {
   searchParams: Promise<{
     q?: string;
-    segment?: string;
+    type?: string;
     tier?: string;
+    status?: string;
+    outreach?: string;
+    owner?: string;
+    success?: string;
     error?: string;
   }>;
 };
 
-function formatLabel(value: string | null) {
-  if (!value) return "Not recorded";
+type InstitutionRecord = {
+  id: string;
+  name: string;
+  institution_type: string | null;
+  segment: string | null;
+  tier: string | null;
+  location: string | null;
+  status: string | null;
+  outreach_status: string | null;
+  assigned_to: string | null;
+};
 
+type ProfileRecord = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  role: string | null;
+  is_active: boolean | null;
+};
+
+function uniqueValues(
+  values: Array<
+    string | null | undefined
+  >
+) {
+  return Array.from(
+    new Set(
+      values.filter(
+        (value): value is string =>
+          Boolean(value?.trim())
+      )
+    )
+  ).sort((a, b) =>
+    a.localeCompare(b)
+  );
+}
+
+function profileName(
+  profile: ProfileRecord
+) {
+  return (
+    profile.full_name ||
+    profile.email ||
+    "Unnamed Team Member"
+  );
+}
+
+function formatLabel(
+  value: string
+) {
   return value
     .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase()
+    );
 }
 
 export default async function AdminInstitutionsPage({
   searchParams,
-}: AdminInstitutionsPageProps) {
+}: PageProps) {
   const params = await searchParams;
-  const supabase = await createClient();
+  const { supabase } =
+    await requireSuperAdmin();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const [
+    institutionResult,
+    profileResult,
+  ] = await Promise.all([
+    supabase
+      .from("institutions")
+      .select(
+        `
+          id,
+          name,
+          institution_type,
+          segment,
+          tier,
+          location,
+          status,
+          outreach_status,
+          assigned_to
+        `
+      )
+      .order("name")
+      .limit(1000),
 
-  if (authError || !user) {
-    redirect("/login");
+    supabase
+      .from("profiles")
+      .select(
+        `
+          id,
+          full_name,
+          email,
+          role,
+          is_active
+        `
+      )
+      .order("full_name", {
+        ascending: true,
+        nullsFirst: false,
+      }),
+  ]);
+
+  const institutions =
+    (institutionResult.data ||
+      []) as InstitutionRecord[];
+
+  const profiles =
+    (
+      (profileResult.data ||
+        []) as ProfileRecord[]
+    ).filter(
+      (profile) =>
+        profile.is_active !== false
+    );
+
+  const q = String(
+    params.q || ""
+  ).trim();
+
+  const type = String(
+    params.type || ""
+  ).trim();
+
+  const tier = String(
+    params.tier || ""
+  ).trim();
+
+  const status = String(
+    params.status || ""
+  ).trim();
+
+  const outreach = String(
+    params.outreach || ""
+  ).trim();
+
+  const owner = String(
+    params.owner || ""
+  ).trim();
+
+  const terms = q
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const filteredInstitutions =
+    institutions.filter(
+      (institution) => {
+        const searchable = [
+          institution.name,
+          institution.institution_type,
+          institution.segment,
+          institution.tier,
+          institution.location,
+          institution.status,
+          institution.outreach_status,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const matchesSearch =
+          terms.length === 0 ||
+          terms.every((term) =>
+            searchable.includes(term)
+          );
+
+        const matchesType =
+          !type ||
+          institution.segment === type ||
+          institution.institution_type ===
+            type;
+
+        const matchesOwner =
+          !owner ||
+          (owner === "unassigned"
+            ? !institution.assigned_to
+            : institution.assigned_to ===
+              owner);
+
+        return (
+          matchesSearch &&
+          matchesType &&
+          (!tier ||
+            institution.tier ===
+              tier) &&
+          (!status ||
+            institution.status ===
+              status) &&
+          (!outreach ||
+            institution.outreach_status ===
+              outreach) &&
+          matchesOwner
+        );
+      }
+    );
+
+  const typeOptions =
+    uniqueValues(
+      institutions.flatMap(
+        (institution) => [
+          institution.segment,
+          institution.institution_type,
+        ]
+      )
+    );
+
+  const tierOptions =
+    uniqueValues(
+      institutions.map(
+        (institution) =>
+          institution.tier
+      )
+    );
+
+  const statusOptions =
+    uniqueValues(
+      institutions.map(
+        (institution) =>
+          institution.status
+      )
+    );
+
+  const outreachOptions =
+    uniqueValues(
+      institutions.map(
+        (institution) =>
+          institution.outreach_status
+      )
+    );
+
+  const returnParams =
+    new URLSearchParams();
+
+  if (q) {
+    returnParams.set("q", q);
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!["super_admin", "management"].includes(profile?.role || "")) {
-    redirect("/");
+  if (type) {
+    returnParams.set("type", type);
   }
-
-  const search = String(params.q || "").trim();
-  const segment = String(params.segment || "").trim();
-  const tier = String(params.tier || "").trim();
-
-  let query = supabase
-    .from("institutions")
-    .select(`
-      id,
-      name,
-      sector,
-      segment,
-      institution_type,
-      tier,
-      asset_size_billions,
-      ceo_name,
-      location,
-      status
-    `)
-    .order("name")
-    .limit(500);
-
-  if (search) {
-    query = query.ilike("name", `%${search}%`);
-  }
-
-  if (segment) {
-    query = query.eq("segment", segment);
-  }
-
   if (tier) {
-    query = query.eq("tier", tier);
+    returnParams.set("tier", tier);
+  }
+  if (status) {
+    returnParams.set(
+      "status",
+      status
+    );
+  }
+  if (outreach) {
+    returnParams.set(
+      "outreach",
+      outreach
+    );
+  }
+  if (owner) {
+    returnParams.set(
+      "owner",
+      owner
+    );
   }
 
-  const { data: institutions, error } = await query;
+  const returnQuery =
+    returnParams.toString();
+
+  const returnUrl = returnQuery
+    ? `/admin/institutions?${returnQuery}`
+    : "/admin/institutions";
+
+  const unassigned =
+    institutions.filter(
+      (institution) =>
+        !institution.assigned_to
+    ).length;
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-3xl bg-slate-950 px-6 py-7 text-white shadow-xl md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col justify-between gap-5 rounded-3xl bg-slate-950 px-6 py-7 text-white shadow-xl lg:flex-row lg:items-center">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-400">
             Super Admin
           </p>
-          <h1 className="mt-2 text-3xl font-black">
-            Institution Administration
+
+          <h1 className="mt-2 font-black">
+            Institution Assignment
           </h1>
-          <p className="mt-2 text-sm text-slate-300">
-            Search, filter and edit institutional database records.
+
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+            Filter institutions, select
+            multiple accounts and assign
+            them in one action.
           </p>
         </div>
 
         <Link
-          href="/admin/sacco-import"
-          className="rounded-xl bg-amber-500 px-5 py-3 text-center text-sm font-black text-slate-950"
+          href="/institutions"
+          className="rounded-xl border border-slate-700 px-4 py-3 text-sm font-black text-white"
         >
-          SACCO Master Import
+          Open Institution Database
         </Link>
       </div>
 
-      {(params.error || error) && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
-          {params.error || error?.message}
+      {params.success && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-800">
+          {params.success}
         </div>
       )}
 
+      {params.error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
+          {params.error}
+        </div>
+      )}
+
+      {(institutionResult.error ||
+        profileResult.error) && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
+          {institutionResult.error
+            ?.message ||
+            profileResult.error
+              ?.message}
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+            All Institutions
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {institutions.length}
+          </p>
+        </article>
+
+        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-wide text-amber-700">
+            Unassigned
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {unassigned}
+          </p>
+        </article>
+
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+            Filtered Results
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {
+              filteredInstitutions.length
+            }
+          </p>
+        </article>
+      </div>
+
       <form
         method="get"
-        className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_220px_180px_auto]"
+        className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-2 xl:grid-cols-6"
       >
         <input
           type="search"
           name="q"
-          defaultValue={search}
-          placeholder="Search institution name..."
-          className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-amber-500"
+          defaultValue={q}
+          placeholder="Search institution, location, type, tier or status..."
+          className="rounded-xl border border-slate-300 px-4 py-3 text-sm sm:col-span-2 xl:col-span-6"
         />
 
         <select
-          name="segment"
-          defaultValue={segment}
-          className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-amber-500"
+          name="type"
+          defaultValue={type}
         >
-          <option value="">All segments</option>
-          <option value="SACCO">SACCO</option>
-          <option value="Bank">Bank</option>
-          <option value="Microfinance">Microfinance</option>
-          <option value="PSP / Fintech">PSP / Fintech</option>
-          <option value="Forex Bureau">Forex Bureau</option>
-          <option value="Insurance">Insurance</option>
-          <option value="Other">Other</option>
+          <option value="">
+            All types
+          </option>
+          {typeOptions.map(
+            (value) => (
+              <option
+                key={value}
+                value={value}
+              >
+                {value}
+              </option>
+            )
+          )}
         </select>
 
         <select
           name="tier"
           defaultValue={tier}
-          className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-amber-500"
         >
-          <option value="">All tiers</option>
-          <option value="Tier 1">Tier 1</option>
-          <option value="Tier 2">Tier 2</option>
-          <option value="Tier 3">Tier 3</option>
-          <option value="Tier 4">Tier 4</option>
-          <option value="Tier 5">Tier 5</option>
+          <option value="">
+            All tiers
+          </option>
+          {tierOptions.map(
+            (value) => (
+              <option
+                key={value}
+                value={value}
+              >
+                {value}
+              </option>
+            )
+          )}
         </select>
 
-        <button
-          type="submit"
-          className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white"
+        <select
+          name="status"
+          defaultValue={status}
         >
-          Filter
-        </button>
+          <option value="">
+            All CRM statuses
+          </option>
+          {statusOptions.map(
+            (value) => (
+              <option
+                key={value}
+                value={value}
+              >
+                {formatLabel(value)}
+              </option>
+            )
+          )}
+        </select>
+
+        <select
+          name="outreach"
+          defaultValue={outreach}
+        >
+          <option value="">
+            All outreach statuses
+          </option>
+          {outreachOptions.map(
+            (value) => (
+              <option
+                key={value}
+                value={value}
+              >
+                {formatLabel(value)}
+              </option>
+            )
+          )}
+        </select>
+
+        <select
+          name="owner"
+          defaultValue={owner}
+        >
+          <option value="">
+            All owners
+          </option>
+          <option value="unassigned">
+            Unassigned only
+          </option>
+          {profiles.map(
+            (profile) => (
+              <option
+                key={profile.id}
+                value={profile.id}
+              >
+                {profileName(profile)}
+              </option>
+            )
+          )}
+        </select>
+
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white"
+          >
+            Filter
+          </button>
+
+          <Link
+            href="/admin/institutions"
+            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-black text-slate-700"
+          >
+            Clear
+          </Link>
+        </div>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <p className="text-sm font-black">
-            {institutions?.length || 0} institutions shown
-          </p>
-        </div>
-
-        {!institutions || institutions.length === 0 ? (
-          <div className="px-6 py-20 text-center text-sm text-slate-500">
-            No institutions match the selected filters.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-200">
-            {institutions.map(
-              (institution: {
-                id: string;
-                name: string;
-                ceo_name: string | null;
-                segment: string | null;
-                tier: string | null;
-                location: string | null;
-                status: string | null;
-              }) => (
-              <article
-                key={institution.id}
-                className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[minmax(220px,1.2fr)_160px_110px_150px_120px_auto] lg:items-center"
-              >
-                <div className="min-w-0">
-                  <Link
-                    href={`/institutions/${institution.id}`}
-                    className="block truncate text-sm font-black text-slate-950 hover:text-amber-700"
-                  >
-                    {institution.name}
-                  </Link>
-                  <p className="mt-1 truncate text-xs text-slate-500">
-                    {institution.ceo_name || "CEO not recorded"}
-                  </p>
-                </div>
-
-                <p className="text-xs font-bold text-slate-700">
-                  {institution.segment || "No segment"}
-                </p>
-
-                <p className="text-xs font-bold text-slate-700">
-                  {institution.tier || "No tier"}
-                </p>
-
-                <p className="text-xs text-slate-500">
-                  {institution.location || "No location"}
-                </p>
-
-                <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-700">
-                  {formatLabel(institution.status)}
-                </span>
-
-                <Link
-                  href={`/admin/institutions/${institution.id}/edit`}
-                  className="rounded-lg bg-amber-500 px-4 py-2 text-center text-xs font-black text-slate-950"
-                >
-                  Edit
-                </Link>
-              </article>
-              )
-            )}
-          </div>
-        )}
-      </div>
+      <BulkInstitutionAssignment
+        institutions={
+          filteredInstitutions
+        }
+        profiles={profiles}
+        returnUrl={returnUrl}
+      />
     </section>
   );
 }
