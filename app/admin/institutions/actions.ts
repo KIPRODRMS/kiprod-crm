@@ -13,6 +13,159 @@ function readField(
   ).trim();
 }
 
+async function validateAssignee({
+  supabase,
+  assignedTo,
+  errorPath,
+}: {
+  supabase: Awaited<
+    ReturnType<
+      typeof requireSuperAdmin
+    >
+  >["supabase"];
+  assignedTo: string;
+  errorPath: string;
+}) {
+  if (!assignedTo) {
+    return;
+  }
+
+  const {
+    data: profile,
+    error,
+  } = await supabase
+    .from("profiles")
+    .select("id, is_active")
+    .eq("id", assignedTo)
+    .maybeSingle();
+
+  if (
+    error ||
+    !profile ||
+    profile.is_active === false
+  ) {
+    redirect(
+      `${errorPath}?error=${encodeURIComponent(
+        "The selected Team Member is unavailable"
+      )}`
+    );
+  }
+}
+
+export async function bulkAssignInstitutions(
+  formData: FormData
+) {
+  const { supabase } =
+    await requireSuperAdmin();
+
+  const institutionIds =
+    formData
+      .getAll("institution_ids")
+      .map((value) =>
+        String(value).trim()
+      )
+      .filter(Boolean);
+
+  const assignedTo = readField(
+    formData,
+    "assigned_to"
+  );
+
+  const requestedReturnUrl =
+    readField(
+      formData,
+      "return_url"
+    );
+
+  const returnUrl =
+    requestedReturnUrl.startsWith(
+      "/admin/institutions"
+    )
+      ? requestedReturnUrl
+      : "/admin/institutions";
+
+  if (
+    institutionIds.length === 0
+  ) {
+    const separator =
+      returnUrl.includes("?")
+        ? "&"
+        : "?";
+
+    redirect(
+      `${returnUrl}${separator}error=${encodeURIComponent(
+        "Select at least one institution"
+      )}`
+    );
+  }
+
+  if (
+    institutionIds.length > 500
+  ) {
+    redirect(
+      `/admin/institutions?error=${encodeURIComponent(
+        "Assign a maximum of 500 institutions at once"
+      )}`
+    );
+  }
+
+  await validateAssignee({
+    supabase,
+    assignedTo,
+    errorPath:
+      "/admin/institutions",
+  });
+
+  const { error } = await supabase
+    .from("institutions")
+    .update({
+      assigned_to:
+        assignedTo || null,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .in("id", institutionIds);
+
+  if (error) {
+    const separator =
+      returnUrl.includes("?")
+        ? "&"
+        : "?";
+
+    redirect(
+      `${returnUrl}${separator}error=${encodeURIComponent(
+        error.message
+      )}`
+    );
+  }
+
+  revalidatePath("/");
+  revalidatePath("/management");
+  revalidatePath("/institutions");
+  revalidatePath(
+    "/admin/institutions"
+  );
+  revalidatePath(
+    "/my-institutions"
+  );
+  revalidatePath("/my-contacts");
+  revalidatePath("/my-workspace");
+  revalidatePath("/search");
+
+  const separator =
+    returnUrl.includes("?")
+      ? "&"
+      : "?";
+
+  redirect(
+    `${returnUrl}${separator}success=${encodeURIComponent(
+      assignedTo
+        ? `${institutionIds.length} institutions assigned successfully`
+        : `${institutionIds.length} institutions unassigned successfully`
+    )}`
+  );
+}
+
 export async function updateInstitutionAdmin(
   formData: FormData
 ) {
@@ -42,29 +195,12 @@ export async function updateInstitutionAdmin(
     "assigned_to"
   );
 
-  if (assignedTo) {
-    const {
-      data: assignedProfile,
-      error: profileError,
-    } = await supabase
-      .from("profiles")
-      .select("id, is_active")
-      .eq("id", assignedTo)
-      .maybeSingle();
-
-    if (
-      profileError ||
-      !assignedProfile ||
-      assignedProfile.is_active ===
-        false
-    ) {
-      redirect(
-        `/admin/institutions/${institutionId}/edit?error=${encodeURIComponent(
-          "The selected Team Member is unavailable"
-        )}`
-      );
-    }
-  }
+  await validateAssignee({
+    supabase,
+    assignedTo,
+    errorPath:
+      `/admin/institutions/${institutionId}/edit`,
+  });
 
   const assetValue = readField(
     formData,
@@ -121,7 +257,6 @@ export async function updateInstitutionAdmin(
     .from("institutions")
     .update({
       name,
-
       assigned_to:
         assignedTo || null,
 
@@ -249,7 +384,12 @@ export async function updateInstitutionAdmin(
   revalidatePath("/");
   revalidatePath("/management");
   revalidatePath("/institutions");
-  revalidatePath("/my-institutions");
+  revalidatePath(
+    "/admin/institutions"
+  );
+  revalidatePath(
+    "/my-institutions"
+  );
   revalidatePath("/my-contacts");
   revalidatePath("/my-workspace");
   revalidatePath("/search");
@@ -258,9 +398,6 @@ export async function updateInstitutionAdmin(
   );
   revalidatePath(
     `/my-institutions/${institutionId}`
-  );
-  revalidatePath(
-    "/admin/institutions"
   );
   revalidatePath(
     `/admin/institutions/${institutionId}/edit`
