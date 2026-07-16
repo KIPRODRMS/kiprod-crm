@@ -37,6 +37,35 @@ export async function updateInstitutionAdmin(
     );
   }
 
+  const assignedTo = readField(
+    formData,
+    "assigned_to"
+  );
+
+  if (assignedTo) {
+    const {
+      data: assignedProfile,
+      error: profileError,
+    } = await supabase
+      .from("profiles")
+      .select("id, is_active")
+      .eq("id", assignedTo)
+      .maybeSingle();
+
+    if (
+      profileError ||
+      !assignedProfile ||
+      assignedProfile.is_active ===
+        false
+    ) {
+      redirect(
+        `/admin/institutions/${institutionId}/edit?error=${encodeURIComponent(
+          "The selected Team Member is unavailable"
+        )}`
+      );
+    }
+  }
+
   const assetValue = readField(
     formData,
     "asset_size_billions"
@@ -69,12 +98,13 @@ export async function updateInstitutionAdmin(
     | null = null;
 
   if (followUpValue) {
-    const parsed = new Date(
-      followUpValue
-    );
+    const parsedDate =
+      new Date(followUpValue);
 
     if (
-      Number.isNaN(parsed.getTime())
+      Number.isNaN(
+        parsedDate.getTime()
+      )
     ) {
       redirect(
         `/admin/institutions/${institutionId}/edit?error=${encodeURIComponent(
@@ -84,43 +114,16 @@ export async function updateInstitutionAdmin(
     }
 
     nextFollowUpAt =
-      parsed.toISOString();
-  }
-
-  const assignedTo =
-    readField(
-      formData,
-      "assigned_to"
-    ) || null;
-
-  if (assignedTo) {
-    const {
-      data: assignedProfile,
-      error: assignedProfileError,
-    } = await supabase
-      .from("profiles")
-      .select("id, is_active")
-      .eq("id", assignedTo)
-      .maybeSingle();
-
-    if (
-      assignedProfileError ||
-      !assignedProfile ||
-      assignedProfile.is_active ===
-        false
-    ) {
-      redirect(
-        `/admin/institutions/${institutionId}/edit?error=${encodeURIComponent(
-          "The selected account owner is unavailable"
-        )}`
-      );
-    }
+      parsedDate.toISOString();
   }
 
   const { error } = await supabase
     .from("institutions")
     .update({
       name,
+
+      assigned_to:
+        assignedTo || null,
 
       institution_type:
         readField(
@@ -215,8 +218,6 @@ export async function updateInstitutionAdmin(
           "follow_up_owner"
         ) || null,
 
-      assigned_to: assignedTo,
-
       next_action:
         readField(
           formData,
@@ -248,14 +249,16 @@ export async function updateInstitutionAdmin(
   revalidatePath("/");
   revalidatePath("/management");
   revalidatePath("/institutions");
+  revalidatePath("/my-institutions");
+  revalidatePath("/my-contacts");
+  revalidatePath("/my-workspace");
+  revalidatePath("/search");
   revalidatePath(
     `/institutions/${institutionId}`
   );
-  revalidatePath("/my-institutions");
   revalidatePath(
     `/my-institutions/${institutionId}`
   );
-  revalidatePath("/my-workspace");
   revalidatePath(
     "/admin/institutions"
   );
@@ -265,7 +268,9 @@ export async function updateInstitutionAdmin(
 
   redirect(
     `/admin/institutions/${institutionId}/edit?success=${encodeURIComponent(
-      "Institution updated successfully"
+      assignedTo
+        ? "Institution assigned and updated successfully"
+        : "Institution updated successfully"
     )}`
   );
 }

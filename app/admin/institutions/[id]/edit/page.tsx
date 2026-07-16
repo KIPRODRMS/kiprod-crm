@@ -1,38 +1,203 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { requireSuperAdmin } from "@/lib/auth";
 import { updateInstitutionAdmin } from "../../actions";
+import { assignContactOwner } from "../../../contacts/actions";
 
 type EditInstitutionPageProps = {
   params: Promise<{
     id: string;
   }>;
+
   searchParams: Promise<{
     success?: string;
     error?: string;
   }>;
 };
 
-function localDateTime(value: string | null) {
-  if (!value) return "";
+type TeamProfile = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  role: string | null;
+  is_active: boolean | null;
+};
 
-  const date = new Date(value);
+type ContactRecord = {
+  id: string;
+  full_name: string;
+  job_title: string | null;
+  email: string | null;
+  phone: string | null;
+  is_primary: boolean | null;
+  assigned_to: string | null;
+};
 
-  if (Number.isNaN(date.getTime())) return "";
+type FieldProps = {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  type?: string;
+  required?: boolean;
+  min?: string;
+  step?: string;
+  span?: boolean;
+};
 
-  const pad = (number: number) => String(number).padStart(2, "0");
-
-  return `${date.getFullYear()}-${pad(
-    date.getMonth() + 1
-  )}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
-    date.getMinutes()
-  )}`;
-}
+type SelectOption = {
+  value: string;
+  label: string;
+};
 
 const fieldClass =
   "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500";
+
 const labelClass =
   "mb-2 block text-[11px] font-black uppercase tracking-wide text-slate-600";
+
+function localDateTime(
+  value: string | null
+) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (
+    Number.isNaN(date.getTime())
+  ) {
+    return "";
+  }
+
+  const pad = (number: number) =>
+    String(number).padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(
+    date.getMonth() + 1
+  )}-${pad(date.getDate())}T${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+}
+
+function roleLabel(
+  role: string | null
+) {
+  if (role === "super_admin") {
+    return "Super Admin";
+  }
+
+  if (role === "management") {
+    return "Management";
+  }
+
+  return "Team Member";
+}
+
+function InputField({
+  label,
+  name,
+  defaultValue = "",
+  type = "text",
+  required,
+  min,
+  step,
+  span,
+}: FieldProps) {
+  return (
+    <div
+      className={
+        span
+          ? "md:col-span-2"
+          : undefined
+      }
+    >
+      <label className={labelClass}>
+        {label}
+      </label>
+
+      <input
+        name={name}
+        type={type}
+        required={required}
+        min={min}
+        step={step}
+        defaultValue={defaultValue}
+        className={fieldClass}
+      />
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  name,
+  defaultValue,
+  options,
+  span,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  options: SelectOption[];
+  span?: boolean;
+}) {
+  return (
+    <div
+      className={
+        span
+          ? "md:col-span-2"
+          : undefined
+      }
+    >
+      <label className={labelClass}>
+        {label}
+      </label>
+
+      <select
+        name={name}
+        defaultValue={defaultValue}
+        className={fieldClass}
+      >
+        {options.map((option) => (
+          <option
+            key={option.value}
+            value={option.value}
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function TextareaField({
+  label,
+  name,
+  defaultValue,
+  rows,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  rows: number;
+}) {
+  return (
+    <div className="md:col-span-2">
+      <label className={labelClass}>
+        {label}
+      </label>
+
+      <textarea
+        name={name}
+        rows={rows}
+        defaultValue={defaultValue}
+        className={fieldClass}
+      />
+    </div>
+  );
+}
 
 export default async function EditInstitutionPage({
   params,
@@ -40,78 +205,160 @@ export default async function EditInstitutionPage({
 }: EditInstitutionPageProps) {
   const { id } = await params;
   const messages = await searchParams;
-  const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { supabase } =
+    await requireSuperAdmin();
 
-  if (authError || !user) {
-    redirect("/login");
-  }
+  const [
+    institutionResult,
+    contactsResult,
+    profilesResult,
+  ] = await Promise.all([
+    supabase
+      .from("institutions")
+      .select(
+        `
+          id,
+          name,
+          assigned_to,
+          institution_type,
+          sector,
+          segment,
+          tier,
+          asset_size_billions,
+          ceo_name,
+          location,
+          website,
+          email,
+          phone,
+          source,
+          status,
+          outreach_status,
+          invoice_status,
+          registration_status,
+          follow_up_owner,
+          next_action,
+          next_follow_up_at,
+          historical_notes
+        `
+      )
+      .eq("id", id)
+      .maybeSingle(),
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
+    supabase
+      .from("contacts")
+      .select(
+        `
+          id,
+          full_name,
+          job_title,
+          email,
+          phone,
+          is_primary,
+          assigned_to
+        `
+      )
+      .eq("institution_id", id)
+      .order("is_primary", {
+        ascending: false,
+      })
+      .order("full_name"),
 
-  if (!["super_admin", "management"].includes(profile?.role || "")) {
-    redirect("/");
-  }
+    supabase
+      .from("profiles")
+      .select(
+        `
+          id,
+          full_name,
+          email,
+          role,
+          is_active
+        `
+      )
+      .order("full_name", {
+        ascending: true,
+        nullsFirst: false,
+      }),
+  ]);
 
-  const { data: institution, error } = await supabase
-    .from("institutions")
-    .select(`
-      id,
-      name,
-      institution_type,
-      sector,
-      segment,
-      tier,
-      asset_size_billions,
-      ceo_name,
-      location,
-      website,
-      email,
-      phone,
-      source,
-      status,
-      outreach_status,
-      invoice_status,
-      registration_status,
-      follow_up_owner,
-      next_action,
-      next_follow_up_at,
-      historical_notes
-    `)
-    .eq("id", id)
-    .maybeSingle();
+  const institution =
+    institutionResult.data;
 
-  if (error || !institution) {
+  if (
+    institutionResult.error ||
+    !institution
+  ) {
     notFound();
   }
 
-  const { data: contacts } = await supabase
-    .from("contacts")
-    .select("id, full_name, job_title, email, phone, is_primary")
-    .eq("institution_id", id)
-    .order("full_name");
+  const contacts =
+    (contactsResult.data ||
+      []) as ContactRecord[];
+
+  const profiles = (
+    (profilesResult.data ||
+      []) as TeamProfile[]
+  ).filter(
+    (profile) =>
+      profile.is_active !== false
+  );
+
+  const profileMap = new Map(
+    profiles.map((profile) => [
+      profile.id,
+      profile.full_name ||
+        profile.email ||
+        "Unnamed Team Member",
+    ])
+  );
+
+  const accountOwner =
+    institution.assigned_to
+      ? profileMap.get(
+          institution.assigned_to
+        ) || "Unknown Team Member"
+      : "Unassigned";
+
+  const ownerOptions: SelectOption[] =
+    [
+      {
+        value: "",
+        label: "Unassigned",
+      },
+
+      ...profiles.map((profile) => ({
+        value: profile.id,
+        label: `${
+          profile.full_name ||
+          profile.email ||
+          "Unnamed Team Member"
+        } — ${roleLabel(
+          profile.role
+        )}`,
+      })),
+    ];
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-3xl bg-slate-950 px-6 py-7 text-white shadow-xl md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col justify-between gap-4 rounded-3xl bg-slate-950 px-6 py-7 text-white shadow-xl md:flex-row md:items-center">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-400">
-            Admin Edit
+            Account Administration
           </p>
-          <h1 className="mt-2 text-3xl font-black">
+
+          <h1 className="mt-2 font-black">
             {institution.name}
           </h1>
+
           <p className="mt-2 text-sm text-slate-300">
-            Edit classification, contact channels, outreach status
-            and historical information.
+            Assign the full institution
+            or allocate individual
+            contacts separately.
+          </p>
+
+          <p className="mt-3 text-xs font-bold text-amber-300">
+            Current account owner:{" "}
+            {accountOwner}
           </p>
         </div>
 
@@ -120,8 +367,9 @@ export default async function EditInstitutionPage({
             href="/admin/institutions"
             className="rounded-xl border border-slate-700 px-4 py-3 text-sm font-black text-white"
           >
-            Back to Admin List
+            Back to List
           </Link>
+
           <Link
             href={`/institutions/${institution.id}`}
             className="rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-slate-950"
@@ -143,9 +391,11 @@ export default async function EditInstitutionPage({
         </div>
       )}
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <form
-          action={updateInstitutionAdmin}
+          action={
+            updateInstitutionAdmin
+          }
           className="grid gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-lg md:grid-cols-2"
         >
           <input
@@ -154,289 +404,438 @@ export default async function EditInstitutionPage({
             value={institution.id}
           />
 
-          <div className="md:col-span-2">
-            <label className={labelClass}>Institution Name *</label>
-            <input
-              name="name"
-              required
-              defaultValue={institution.name}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Institution Name *"
+            name="name"
+            required
+            span
+            defaultValue={
+              institution.name
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Sector</label>
-            <input
-              name="sector"
-              defaultValue={institution.sector || ""}
-              placeholder="Financial Services"
-              className={fieldClass}
-            />
-          </div>
+          <SelectField
+            label="Assigned Account Owner"
+            name="assigned_to"
+            span
+            defaultValue={
+              institution.assigned_to ||
+              ""
+            }
+            options={ownerOptions}
+          />
 
-          <div>
-            <label className={labelClass}>Segment</label>
-            <select
-              name="segment"
-              defaultValue={institution.segment || ""}
-              className={fieldClass}
-            >
-              <option value="">Select segment</option>
-              <option value="SACCO">SACCO</option>
-              <option value="Bank">Bank</option>
-              <option value="Microfinance">Microfinance</option>
-              <option value="PSP / Fintech">PSP / Fintech</option>
-              <option value="Forex Bureau">Forex Bureau</option>
-              <option value="Insurance">Insurance</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
+          <InputField
+            label="Sector"
+            name="sector"
+            defaultValue={
+              institution.sector || ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Institution Type</label>
-            <input
-              name="institution_type"
-              defaultValue={institution.institution_type || ""}
-              className={fieldClass}
-            />
-          </div>
+          <SelectField
+            label="Segment"
+            name="segment"
+            defaultValue={
+              institution.segment || ""
+            }
+            options={[
+              {
+                value: "",
+                label:
+                  "Select segment",
+              },
+              {
+                value: "SACCO",
+                label: "SACCO",
+              },
+              {
+                value: "Bank",
+                label: "Bank",
+              },
+              {
+                value: "Microfinance",
+                label:
+                  "Microfinance",
+              },
+              {
+                value:
+                  "PSP / Fintech",
+                label:
+                  "PSP / Fintech",
+              },
+              {
+                value:
+                  "Forex Bureau",
+                label:
+                  "Forex Bureau",
+              },
+              {
+                value: "Insurance",
+                label: "Insurance",
+              },
+              {
+                value: "Other",
+                label: "Other",
+              },
+            ]}
+          />
 
-          <div>
-            <label className={labelClass}>Tier</label>
-            <select
-              name="tier"
-              defaultValue={institution.tier || ""}
-              className={fieldClass}
-            >
-              <option value="">No tier</option>
-              <option value="Tier 1">Tier 1</option>
-              <option value="Tier 2">Tier 2</option>
-              <option value="Tier 3">Tier 3</option>
-              <option value="Tier 4">Tier 4</option>
-              <option value="Tier 5">Tier 5</option>
-            </select>
-          </div>
+          <InputField
+            label="Institution Type"
+            name="institution_type"
+            defaultValue={
+              institution.institution_type ||
+              ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>
-              Assets (KES Billions)
-            </label>
-            <input
-              name="asset_size_billions"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={
-                institution.asset_size_billions ?? ""
-              }
-              className={fieldClass}
-            />
-          </div>
+          <SelectField
+            label="Tier"
+            name="tier"
+            defaultValue={
+              institution.tier || ""
+            }
+            options={[
+              {
+                value: "",
+                label: "No tier",
+              },
+              {
+                value: "Tier 1",
+                label: "Tier 1",
+              },
+              {
+                value: "Tier 2",
+                label: "Tier 2",
+              },
+              {
+                value: "Tier 3",
+                label: "Tier 3",
+              },
+              {
+                value: "Tier 4",
+                label: "Tier 4",
+              },
+              {
+                value: "Tier 5",
+                label: "Tier 5",
+              },
+            ]}
+          />
 
-          <div>
-            <label className={labelClass}>CEO Name</label>
-            <input
-              name="ceo_name"
-              defaultValue={institution.ceo_name || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Assets (KES Billions)"
+            name="asset_size_billions"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={String(
+              institution.asset_size_billions ??
+                ""
+            )}
+          />
 
-          <div>
-            <label className={labelClass}>County / Location</label>
-            <input
-              name="location"
-              defaultValue={institution.location || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="CEO Name"
+            name="ceo_name"
+            defaultValue={
+              institution.ceo_name ||
+              ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>CRM Status</label>
-            <select
-              name="status"
-              defaultValue={institution.status || "prospect"}
-              className={fieldClass}
-            >
-              <option value="prospect">Prospect</option>
-              <option value="engaged">Engaged</option>
-              <option value="active_opportunity">
-                Active Opportunity
-              </option>
-              <option value="active_partner">
-                Active Partner
-              </option>
-              <option value="deferred">Deferred</option>
-              <option value="lost">Lost</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
+          <InputField
+            label="County / Location"
+            name="location"
+            defaultValue={
+              institution.location ||
+              ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Outreach Status</label>
-            <input
-              name="outreach_status"
-              defaultValue={institution.outreach_status || ""}
-              className={fieldClass}
-            />
-          </div>
+          <SelectField
+            label="CRM Status"
+            name="status"
+            defaultValue={
+              institution.status ||
+              "prospect"
+            }
+            options={[
+              {
+                value: "prospect",
+                label: "Prospect",
+              },
+              {
+                value: "engaged",
+                label: "Engaged",
+              },
+              {
+                value:
+                  "active_opportunity",
+                label:
+                  "Active Opportunity",
+              },
+              {
+                value:
+                  "active_partner",
+                label:
+                  "Active Partner",
+              },
+              {
+                value: "deferred",
+                label: "Deferred",
+              },
+              {
+                value: "lost",
+                label: "Lost",
+              },
+              {
+                value: "inactive",
+                label: "Inactive",
+              },
+            ]}
+          />
 
-          <div>
-            <label className={labelClass}>Public Phone</label>
-            <input
-              name="phone"
-              defaultValue={institution.phone || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Outreach Status"
+            name="outreach_status"
+            defaultValue={
+              institution.outreach_status ||
+              ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Public Email</label>
-            <input
-              name="email"
-              defaultValue={institution.email || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Public Phone"
+            name="phone"
+            defaultValue={
+              institution.phone || ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Website</label>
-            <input
-              name="website"
-              defaultValue={institution.website || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Public Email"
+            name="email"
+            type="email"
+            defaultValue={
+              institution.email || ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Follow-up Owner</label>
-            <input
-              name="follow_up_owner"
-              defaultValue={institution.follow_up_owner || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Website"
+            name="website"
+            defaultValue={
+              institution.website || ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Invoice Status</label>
-            <input
-              name="invoice_status"
-              defaultValue={institution.invoice_status || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Follow-up Owner"
+            name="follow_up_owner"
+            defaultValue={
+              institution.follow_up_owner ||
+              ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>
-              Registration Status
-            </label>
-            <input
-              name="registration_status"
-              defaultValue={
-                institution.registration_status || ""
-              }
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Invoice Status"
+            name="invoice_status"
+            defaultValue={
+              institution.invoice_status ||
+              ""
+            }
+          />
 
-          <div className="md:col-span-2">
-            <label className={labelClass}>Next Action</label>
-            <textarea
-              name="next_action"
-              rows={3}
-              defaultValue={institution.next_action || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Registration Status"
+            name="registration_status"
+            defaultValue={
+              institution.registration_status ||
+              ""
+            }
+          />
 
-          <div>
-            <label className={labelClass}>Next Follow-up</label>
-            <input
-              name="next_follow_up_at"
-              type="datetime-local"
-              defaultValue={localDateTime(
-                institution.next_follow_up_at
-              )}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Next Follow-up"
+            name="next_follow_up_at"
+            type="datetime-local"
+            defaultValue={localDateTime(
+              institution.next_follow_up_at
+            )}
+          />
 
-          <div>
-            <label className={labelClass}>Data Source</label>
-            <input
-              name="source"
-              defaultValue={institution.source || ""}
-              className={fieldClass}
-            />
-          </div>
+          <InputField
+            label="Data Source"
+            name="source"
+            defaultValue={
+              institution.source || ""
+            }
+          />
 
-          <div className="md:col-span-2">
-            <label className={labelClass}>Historical Notes</label>
-            <textarea
-              name="historical_notes"
-              rows={8}
-              defaultValue={institution.historical_notes || ""}
-              className={fieldClass}
-            />
-          </div>
+          <TextareaField
+            label="Next Action"
+            name="next_action"
+            rows={3}
+            defaultValue={
+              institution.next_action ||
+              ""
+            }
+          />
+
+          <TextareaField
+            label="Historical Notes"
+            name="historical_notes"
+            rows={7}
+            defaultValue={
+              institution.historical_notes ||
+              ""
+            }
+          />
 
           <button
             type="submit"
             className="rounded-xl bg-amber-500 px-5 py-4 text-sm font-black text-slate-950 md:col-span-2"
           >
-            Save Institution Changes
+            Save Institution and
+            Assignment
           </button>
         </form>
 
         <aside className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
-          <div className="border-b border-slate-200 px-5 py-4">
+          <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
             <p className="text-xs font-black uppercase tracking-wide text-amber-700">
               Linked Contacts
             </p>
-            <h2 className="mt-1 text-xl font-black">
-              {contacts?.length || 0} Contacts
+
+            <h2 className="mt-1 font-black">
+              {contacts.length} Contacts
             </h2>
+
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              The account owner sees
+              every contact automatically.
+              A direct owner can also be
+              assigned to one contact.
+            </p>
           </div>
 
-          {!contacts || contacts.length === 0 ? (
+          {contacts.length === 0 ? (
             <p className="p-5 text-sm text-slate-500">
-              No contacts are linked to this institution.
+              No contacts are linked to
+              this institution.
             </p>
           ) : (
             <div className="divide-y divide-slate-200">
               {contacts.map(
-                (contact: {
-                  id: string;
-                  full_name: string;
-                  job_title: string | null;
-                  is_primary: boolean | null;
-                }) => (
-                <div key={contact.id} className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black">
-                        {contact.full_name}
-                      </p>
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {contact.job_title || "Role not recorded"}
-                      </p>
-                    </div>
+                (contact) => {
+                  const directOwner =
+                    contact.assigned_to
+                      ? profileMap.get(
+                          contact.assigned_to
+                        ) ||
+                        "Unknown Team Member"
+                      : null;
 
-                    {contact.is_primary && (
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-black text-amber-800">
-                        Primary
-                      </span>
-                    )}
-                  </div>
+                  return (
+                    <section
+                      key={contact.id}
+                      className="space-y-4 p-5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-slate-950">
+                            {
+                              contact.full_name
+                            }
+                          </p>
 
-                  <Link
-                    href={`/admin/contacts/${contact.id}/edit`}
-                    className="mt-3 block rounded-lg bg-slate-950 px-3 py-2 text-center text-xs font-black text-white"
-                  >
-                    Edit Contact
-                  </Link>
-                </div>
-                )
+                          <p className="mt-1 truncate text-xs text-slate-500">
+                            {contact.job_title ||
+                              "Role not recorded"}
+                          </p>
+
+                          <p className="mt-2 text-[11px] font-bold text-slate-600">
+                            {directOwner
+                              ? `Direct owner: ${directOwner}`
+                              : institution.assigned_to
+                                ? `Inherited through account: ${accountOwner}`
+                                : "Currently unassigned"}
+                          </p>
+                        </div>
+
+                        {contact.is_primary && (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-black text-amber-800">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+
+                      <form
+                        action={
+                          assignContactOwner
+                        }
+                        className="space-y-2"
+                      >
+                        <input
+                          type="hidden"
+                          name="contact_id"
+                          value={contact.id}
+                        />
+
+                        <input
+                          type="hidden"
+                          name="institution_id"
+                          value={
+                            institution.id
+                          }
+                        />
+
+                        <select
+                          name="assigned_to"
+                          defaultValue={
+                            contact.assigned_to ||
+                            ""
+                          }
+                          className={fieldClass}
+                        >
+                          {ownerOptions.map(
+                            (option) => (
+                              <option
+                                key={
+                                  option.value
+                                }
+                                value={
+                                  option.value
+                                }
+                              >
+                                {
+                                  option.label
+                                }
+                              </option>
+                            )
+                          )}
+                        </select>
+
+                        <button
+                          type="submit"
+                          className="w-full rounded-lg bg-amber-500 px-3 py-2 text-xs font-black text-slate-950"
+                        >
+                          Save Contact Owner
+                        </button>
+                      </form>
+
+                      <Link
+                        href={`/admin/contacts/${contact.id}/edit`}
+                        className="block rounded-lg bg-slate-950 px-3 py-2 text-center text-xs font-black text-white"
+                      >
+                        Edit Contact Details
+                      </Link>
+                    </section>
+                  );
+                }
               )}
             </div>
           )}

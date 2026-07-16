@@ -13,6 +13,157 @@ function readField(
   ).trim();
 }
 
+async function validateContact({
+  supabase,
+  contactId,
+  institutionId,
+}: {
+  supabase: Awaited<
+    ReturnType<
+      typeof requireSuperAdmin
+    >
+  >["supabase"];
+  contactId: string;
+  institutionId: string;
+}) {
+  const {
+    data: contact,
+    error,
+  } = await supabase
+    .from("contacts")
+    .select("id, institution_id")
+    .eq("id", contactId)
+    .maybeSingle();
+
+  if (
+    error ||
+    !contact ||
+    contact.institution_id !==
+      institutionId
+  ) {
+    redirect(
+      `/admin/institutions?error=${encodeURIComponent(
+        "The selected contact could not be found"
+      )}`
+    );
+  }
+}
+
+async function validateAssignee({
+  supabase,
+  assignedTo,
+}: {
+  supabase: Awaited<
+    ReturnType<
+      typeof requireSuperAdmin
+    >
+  >["supabase"];
+  assignedTo: string;
+}) {
+  if (!assignedTo) {
+    return;
+  }
+
+  const {
+    data: profile,
+    error,
+  } = await supabase
+    .from("profiles")
+    .select("id, is_active")
+    .eq("id", assignedTo)
+    .maybeSingle();
+
+  if (
+    error ||
+    !profile ||
+    profile.is_active === false
+  ) {
+    redirect(
+      `/admin/institutions?error=${encodeURIComponent(
+        "The selected Team Member is unavailable"
+      )}`
+    );
+  }
+}
+
+export async function assignContactOwner(
+  formData: FormData
+) {
+  const { supabase } =
+    await requireSuperAdmin();
+
+  const contactId = readField(
+    formData,
+    "contact_id"
+  );
+
+  const institutionId = readField(
+    formData,
+    "institution_id"
+  );
+
+  const assignedTo = readField(
+    formData,
+    "assigned_to"
+  );
+
+  if (!contactId || !institutionId) {
+    redirect(
+      `/admin/institutions?error=${encodeURIComponent(
+        "Contact and institution are required"
+      )}`
+    );
+  }
+
+  await validateContact({
+    supabase,
+    contactId,
+    institutionId,
+  });
+
+  await validateAssignee({
+    supabase,
+    assignedTo,
+  });
+
+  const { error } = await supabase
+    .from("contacts")
+    .update({
+      assigned_to:
+        assignedTo || null,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq("id", contactId);
+
+  if (error) {
+    redirect(
+      `/admin/institutions/${institutionId}/edit?error=${encodeURIComponent(
+        error.message
+      )}`
+    );
+  }
+
+  revalidatePath("/contacts");
+  revalidatePath("/my-contacts");
+  revalidatePath("/my-workspace");
+  revalidatePath("/search");
+  revalidatePath(
+    `/admin/institutions/${institutionId}/edit`
+  );
+  revalidatePath(
+    `/admin/contacts/${contactId}/edit`
+  );
+
+  redirect(
+    `/admin/institutions/${institutionId}/edit?success=${encodeURIComponent(
+      assignedTo
+        ? "Contact assigned successfully"
+        : "Direct contact assignment removed"
+    )}`
+  );
+}
+
 export async function updateContactAdmin(
   formData: FormData
 ) {
@@ -46,27 +197,11 @@ export async function updateContactAdmin(
     );
   }
 
-  const {
-    data: contact,
-    error: contactLookupError,
-  } = await supabase
-    .from("contacts")
-    .select("id, institution_id")
-    .eq("id", contactId)
-    .maybeSingle();
-
-  if (
-    contactLookupError ||
-    !contact ||
-    contact.institution_id !==
-      institutionId
-  ) {
-    redirect(
-      `/admin/institutions?error=${encodeURIComponent(
-        "The selected contact could not be found"
-      )}`
-    );
-  }
+  await validateContact({
+    supabase,
+    contactId,
+    institutionId,
+  });
 
   const isPrimary =
     formData.get("is_primary") ===
@@ -74,7 +209,7 @@ export async function updateContactAdmin(
 
   if (isPrimary) {
     const {
-      error: primaryUpdateError,
+      error: primaryError,
     } = await supabase
       .from("contacts")
       .update({
@@ -88,10 +223,10 @@ export async function updateContactAdmin(
       )
       .neq("id", contactId);
 
-    if (primaryUpdateError) {
+    if (primaryError) {
       redirect(
         `/admin/contacts/${contactId}/edit?error=${encodeURIComponent(
-          primaryUpdateError.message
+          primaryError.message
         )}`
       );
     }
@@ -153,10 +288,11 @@ export async function updateContactAdmin(
   }
 
   revalidatePath("/contacts");
+  revalidatePath("/my-contacts");
+  revalidatePath("/search");
   revalidatePath(
     `/contacts/${contactId}`
   );
-  revalidatePath("/my-contacts");
   revalidatePath(
     `/institutions/${institutionId}`
   );
