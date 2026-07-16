@@ -1,480 +1,228 @@
 import Link from "next/link";
-import { requireSuperAdmin } from "@/lib/auth";
-import { updateUserAccess } from "./actions";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
-type AdminPageProps = {
+type AdminInstitutionsPageProps = {
   searchParams: Promise<{
-    success?: string;
+    q?: string;
+    segment?: string;
+    tier?: string;
     error?: string;
   }>;
 };
 
-const tools = [
-  {
-    title: "SACCO Master Import",
-    description:
-      "Import and maintain the confirmed SACCO institutional dataset, contacts and historical outreach records.",
-    href: "/admin/sacco-import",
-    label: "Open SACCO Import",
-  },
-  {
-    title: "Institution Management",
-    description:
-      "Edit institutional records, classifications, assignments, contacts and engagement history.",
-    href: "/admin/institutions",
-    label: "Manage Institutions",
-  },
-  {
-    title: "Reports Oversight",
-    description:
-      "Review daily and weekly reports, delivery gaps, feedback and management-support requests.",
-    href: "/reports",
-    label: "Open Reports",
-  },
-  {
-    title: "Academy Administration",
-    description:
-      "Create courses, modules, lessons and assign learning programmes to team members.",
-    href: "/academy",
-    label: "Open Academy",
-  },
-  {
-    title: "Pipeline Oversight",
-    description:
-      "Review organisation-wide opportunities, values, ownership, stages and next actions.",
-    href: "/opportunities",
-    label: "Open Opportunities",
-  },
-  {
-    title: "Management Workspace",
-    description:
-      "Return to the organisation-wide management dashboard and operational review tools.",
-    href: "/management",
-    label: "Open Management",
-  },
-];
+function formatLabel(value: string | null) {
+  if (!value) return "Not recorded";
 
-function roleLabel(
-  role: string | null
-) {
-  switch (role) {
-    case "super_admin":
-      return "Super Admin";
-
-    case "management":
-      return "Management";
-
-    case "team_lead":
-      return "Team Lead";
-
-    default:
-      return "Team Member";
-  }
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function roleClasses(
-  role: string | null
-) {
-  switch (role) {
-    case "super_admin":
-      return "bg-amber-100 text-amber-900";
-
-    case "management":
-      return "bg-blue-100 text-blue-800";
-
-    default:
-      return "bg-slate-100 text-slate-700";
-  }
-}
-
-export default async function AdminPage({
+export default async function AdminInstitutionsPage({
   searchParams,
-}: AdminPageProps) {
-  const messages = await searchParams;
+}: AdminInstitutionsPageProps) {
+  const params = await searchParams;
+  const supabase = await createClient();
 
   const {
-    supabase,
-    user,
-    profile,
-  } = await requireSuperAdmin();
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  const {
-    data: profileData,
-    error: profilesError,
-  } = await supabase
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  const { data: profile } = await supabase
     .from("profiles")
-    .select(
-      `
-        id,
-        full_name,
-        email,
-        job_title,
-        department,
-        role,
-        is_active,
-        created_at
-      `
-    )
-    .order("full_name", {
-      ascending: true,
-      nullsFirst: false,
-    });
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  const profiles =
-    profileData || [];
+  if (!["super_admin", "management"].includes(profile?.role || "")) {
+    redirect("/");
+  }
 
-  const activeProfiles =
-    profiles.filter(
-      (account) =>
-        account.is_active !== false
-    );
+  const search = String(params.q || "").trim();
+  const segment = String(params.segment || "").trim();
+  const tier = String(params.tier || "").trim();
 
-  const superAdmins =
-    activeProfiles.filter(
-      (account) =>
-        account.role ===
-        "super_admin"
-    );
+  let query = supabase
+    .from("institutions")
+    .select(`
+      id,
+      name,
+      sector,
+      segment,
+      institution_type,
+      tier,
+      asset_size_billions,
+      ceo_name,
+      location,
+      status
+    `)
+    .order("name")
+    .limit(500);
 
-  const managementAccounts =
-    activeProfiles.filter(
-      (account) =>
-        account.role ===
-        "management"
-    );
+  if (search) {
+    query = query.ilike("name", `%${search}%`);
+  }
 
-  const teamMemberAccounts =
-    activeProfiles.filter(
-      (account) =>
-        ![
-          "super_admin",
-          "management",
-        ].includes(
-          account.role || ""
-        )
-    );
+  if (segment) {
+    query = query.eq("segment", segment);
+  }
+
+  if (tier) {
+    query = query.eq("tier", tier);
+  }
+
+  const { data: institutions, error } = await query;
 
   return (
-    <section className="space-y-7">
-      <div className="rounded-3xl bg-slate-950 px-6 py-8 text-white shadow-xl">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-400">
-              Restricted Administration
-            </p>
-
-            <h1 className="mt-2 text-3xl font-black">
-              Super Admin Centre
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Full system control for user
-              access, institutional data,
-              imports, reporting, Academy
-              administration and CRM
-              governance.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-4">
-            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-              Signed In
-            </p>
-
-            <p className="mt-1 font-black text-white">
-              {profile.full_name ||
-                profile.email ||
-                "Super Admin"}
-            </p>
-
-            <p className="mt-1 text-xs font-bold text-amber-400">
-              Full System Access
-            </p>
-          </div>
+    <section className="space-y-6">
+      <div className="flex flex-col gap-4 rounded-3xl bg-slate-950 px-6 py-7 text-white shadow-xl md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-400">
+            Super Admin
+          </p>
+          <h1 className="mt-2 text-3xl font-black">
+            Institution Administration
+          </h1>
+          <p className="mt-2 text-sm text-slate-300">
+            Search, filter and edit institutional database records.
+          </p>
         </div>
+
+        <Link
+          href="/admin/sacco-import"
+          className="rounded-xl bg-amber-500 px-5 py-3 text-center text-sm font-black text-slate-950"
+        >
+          SACCO Master Import
+        </Link>
       </div>
 
-      {messages.success && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-800">
-          {messages.success}
-        </div>
-      )}
-
-      {messages.error && (
+      {(params.error || error) && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
-          {messages.error}
+          {params.error || error?.message}
         </div>
       )}
 
-      {profilesError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
-          Unable to load user accounts:{" "}
-          {profilesError.message}
-        </div>
-      )}
+      <form
+        method="get"
+        className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_220px_180px_auto]"
+      >
+        <input
+          type="search"
+          name="q"
+          defaultValue={search}
+          placeholder="Search institution name..."
+          className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-amber-500"
+        />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-            Active Accounts
-          </p>
+        <select
+          name="segment"
+          defaultValue={segment}
+          className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-amber-500"
+        >
+          <option value="">All segments</option>
+          <option value="SACCO">SACCO</option>
+          <option value="Bank">Bank</option>
+          <option value="Microfinance">Microfinance</option>
+          <option value="PSP / Fintech">PSP / Fintech</option>
+          <option value="Forex Bureau">Forex Bureau</option>
+          <option value="Insurance">Insurance</option>
+          <option value="Other">Other</option>
+        </select>
 
-          <p className="mt-2 text-2xl font-black">
-            {activeProfiles.length}
-          </p>
-        </article>
+        <select
+          name="tier"
+          defaultValue={tier}
+          className="rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-amber-500"
+        >
+          <option value="">All tiers</option>
+          <option value="Tier 1">Tier 1</option>
+          <option value="Tier 2">Tier 2</option>
+          <option value="Tier 3">Tier 3</option>
+          <option value="Tier 4">Tier 4</option>
+          <option value="Tier 5">Tier 5</option>
+        </select>
 
-        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-wide text-amber-700">
-            Super Admins
-          </p>
+        <button
+          type="submit"
+          className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white"
+        >
+          Filter
+        </button>
+      </form>
 
-          <p className="mt-2 text-2xl font-black text-amber-900">
-            {superAdmins.length}
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-wide text-blue-700">
-            Management
-          </p>
-
-          <p className="mt-2 text-2xl font-black text-blue-900">
-            {managementAccounts.length}
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-            Team Members
-          </p>
-
-          <p className="mt-2 text-2xl font-black">
-            {teamMemberAccounts.length}
-          </p>
-        </article>
-      </div>
-
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {tools.map((tool) => (
-          <article
-            key={tool.title}
-            className="flex min-h-56 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-lg"
-          >
-            <p className="text-xs font-black uppercase tracking-wide text-amber-700">
-              Admin Tool
-            </p>
-
-            <h2 className="mt-3 text-xl font-black text-slate-950">
-              {tool.title}
-            </h2>
-
-            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">
-              {tool.description}
-            </p>
-
-            <Link
-              href={tool.href}
-              className="mt-5 inline-flex justify-center rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800"
-            >
-              {tool.label}
-            </Link>
-          </article>
-        ))}
-      </div>
-
-      <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
-        <div className="border-b border-slate-200 bg-slate-50 px-6 py-5">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
-            User Access Management
-          </p>
-
-          <h2 className="mt-2 text-2xl font-black">
-            CRM Accounts and Access Levels
-          </h2>
-
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Super Admin gives full system
-            access. Management gives
-            organisation-wide operational
-            visibility. Team Member access
-            is limited to assigned accounts,
-            tasks, reports and Academy
-            enrolments.
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <p className="text-sm font-black">
+            {institutions?.length || 0} institutions shown
           </p>
         </div>
 
-        {profiles.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-slate-500">
-            No CRM accounts were found.
+        {!institutions || institutions.length === 0 ? (
+          <div className="px-6 py-20 text-center text-sm text-slate-500">
+            No institutions match the selected filters.
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {profiles.map((account) => {
-              const isCurrentUser =
-                account.id === user.id;
+            {institutions.map(
+              (institution: {
+                id: string;
+                name: string;
+                ceo_name: string | null;
+                segment: string | null;
+                tier: string | null;
+                location: string | null;
+                status: string | null;
+              }) => (
+              <article
+                key={institution.id}
+                className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[minmax(220px,1.2fr)_160px_110px_150px_120px_auto] lg:items-center"
+              >
+                <div className="min-w-0">
+                  <Link
+                    href={`/institutions/${institution.id}`}
+                    className="block truncate text-sm font-black text-slate-950 hover:text-amber-700"
+                  >
+                    {institution.name}
+                  </Link>
+                  <p className="mt-1 truncate text-xs text-slate-500">
+                    {institution.ceo_name || "CEO not recorded"}
+                  </p>
+                </div>
 
-              return (
-                <section
-                  key={account.id}
-                  className="grid gap-5 px-6 py-5 xl:grid-cols-[minmax(240px,1fr)_160px_minmax(360px,1.1fr)] xl:items-center"
+                <p className="text-xs font-bold text-slate-700">
+                  {institution.segment || "No segment"}
+                </p>
+
+                <p className="text-xs font-bold text-slate-700">
+                  {institution.tier || "No tier"}
+                </p>
+
+                <p className="text-xs text-slate-500">
+                  {institution.location || "No location"}
+                </p>
+
+                <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-700">
+                  {formatLabel(institution.status)}
+                </span>
+
+                <Link
+                  href={`/admin/institutions/${institution.id}/edit`}
+                  className="rounded-lg bg-amber-500 px-4 py-2 text-center text-xs font-black text-slate-950"
                 >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-black text-slate-950">
-                        {account.full_name ||
-                          account.email ||
-                          "Unnamed Account"}
-                      </p>
-
-                      {isCurrentUser && (
-                        <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-black text-white">
-                          You
-                        </span>
-                      )}
-
-                      {account.is_active ===
-                        false && (
-                        <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-800">
-                          Inactive
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="mt-1 truncate text-xs text-slate-500">
-                      {account.email ||
-                        "Email not recorded"}
-                    </p>
-
-                    <p className="mt-1 truncate text-xs font-bold text-slate-600">
-                      {[
-                        account.job_title,
-                        account.department,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") ||
-                        "Role details not recorded"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                      Current Access
-                    </p>
-
-                    <span
-                      className={`mt-2 inline-flex rounded-full px-3 py-1 text-[11px] font-black ${roleClasses(
-                        account.role
-                      )}`}
-                    >
-                      {roleLabel(
-                        account.role
-                      )}
-                    </span>
-                  </div>
-
-                  {isCurrentUser ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                      Your own access cannot
-                      be changed here. Another
-                      Super Admin must update
-                      it.
-                    </div>
-                  ) : (
-                    <form
-                      action={
-                        updateUserAccess
-                      }
-                      className="grid gap-3 sm:grid-cols-[1fr_150px_auto]"
-                    >
-                      <input
-                        type="hidden"
-                        name="profile_id"
-                        value={account.id}
-                      />
-
-                      <select
-                        name="role"
-                        defaultValue={
-                          [
-                            "super_admin",
-                            "management",
-                            "employee",
-                          ].includes(
-                            account.role || ""
-                          )
-                            ? account.role ||
-                              "employee"
-                            : "employee"
-                        }
-                        className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-amber-500"
-                      >
-                        <option value="employee">
-                          Team Member
-                        </option>
-
-                        <option value="management">
-                          Management
-                        </option>
-
-                        <option value="super_admin">
-                          Super Admin
-                        </option>
-                      </select>
-
-                      <select
-                        name="is_active"
-                        defaultValue={
-                          account.is_active ===
-                          false
-                            ? "false"
-                            : "true"
-                        }
-                        className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-amber-500"
-                      >
-                        <option value="true">
-                          Active
-                        </option>
-
-                        <option value="false">
-                          Inactive
-                        </option>
-                      </select>
-
-                      <button
-                        type="submit"
-                        className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-400"
-                      >
-                        Save
-                      </button>
-                    </form>
-                  )}
-                </section>
-              );
-            })}
+                  Edit
+                </Link>
+              </article>
+              )
+            )}
           </div>
         )}
-      </article>
-
-      <article className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
-        <p className="text-xs font-black uppercase tracking-wide text-amber-800">
-          Full Access Requirement
-        </p>
-
-        <h2 className="mt-2 text-xl font-black">
-          Joseph Millighan and John Martin
-          Ambetsa
-        </h2>
-
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-          Both accounts should be assigned
-          the Super Admin access level. The
-          CRM also prevents the final active
-          Super Admin from being removed,
-          reducing the risk of system
-          lockout.
-        </p>
-      </article>
+      </div>
     </section>
   );
 }
