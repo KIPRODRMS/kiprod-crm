@@ -2,22 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireManagement } from "@/lib/auth";
+import { requireTeamMember } from "@/lib/auth";
 
 function readField(
   formData: FormData,
-  name: string
+  fieldName: string
 ) {
   return String(
-    formData.get(name) || ""
+    formData.get(fieldName) || ""
   ).trim();
 }
 
-export async function submitDailyReport(
+export async function submitMyDailyReport(
   formData: FormData
 ) {
   const { supabase, user } =
-    await requireManagement();
+    await requireTeamMember();
 
   const reportDate = readField(
     formData,
@@ -26,7 +26,7 @@ export async function submitDailyReport(
 
   if (!reportDate) {
     redirect(
-      "/reports?error=Report date is required"
+      "/my-reports?error=Report date is required"
     );
   }
 
@@ -98,30 +98,27 @@ export async function submitDailyReport(
 
   if (error) {
     redirect(
-      `/reports?error=${encodeURIComponent(
+      `/my-reports?error=${encodeURIComponent(
         error.message
       )}`
     );
   }
 
-  revalidatePath("/");
-  revalidatePath("/management");
-  revalidatePath("/reports");
   revalidatePath("/my-reports");
   revalidatePath("/my-workspace");
 
   redirect(
-    `/reports?success=${encodeURIComponent(
+    `/my-reports?success=${encodeURIComponent(
       "Daily report submitted successfully"
     )}`
   );
 }
 
-export async function submitWeeklyReport(
+export async function submitMyWeeklyReport(
   formData: FormData
 ) {
   const { supabase, user } =
-    await requireManagement();
+    await requireTeamMember();
 
   const weekStart = readField(
     formData,
@@ -135,7 +132,7 @@ export async function submitWeeklyReport(
 
   if (!weekStart || !weekEnd) {
     redirect(
-      "/reports?error=Week start and week end dates are required"
+      "/my-reports?error=Week start and week end dates are required"
     );
   }
 
@@ -144,7 +141,7 @@ export async function submitWeeklyReport(
     new Date(weekStart).getTime()
   ) {
     redirect(
-      "/reports?error=Week end cannot be before week start"
+      "/my-reports?error=Week end cannot be before week start"
     );
   }
 
@@ -235,20 +232,17 @@ export async function submitWeeklyReport(
 
   if (error) {
     redirect(
-      `/reports?error=${encodeURIComponent(
+      `/my-reports?error=${encodeURIComponent(
         error.message
       )}`
     );
   }
 
-  revalidatePath("/");
-  revalidatePath("/management");
-  revalidatePath("/reports");
   revalidatePath("/my-reports");
   revalidatePath("/my-workspace");
 
   redirect(
-    `/reports?success=${encodeURIComponent(
+    `/my-reports?success=${encodeURIComponent(
       "Weekly report submitted successfully"
     )}`
   );

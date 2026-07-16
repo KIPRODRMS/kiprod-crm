@@ -2,35 +2,79 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import {
+  requireManagement,
+  requireSuperAdmin,
+} from "@/lib/auth";
 
-function readField(formData: FormData, name: string) {
-  return String(formData.get(name) || "").trim();
+function readField(
+  formData: FormData,
+  name: string
+) {
+  return String(
+    formData.get(name) || ""
+  ).trim();
 }
 
-export async function createInstitution(formData: FormData) {
-  const supabase = await createClient();
+export async function createInstitution(
+  formData: FormData
+) {
+  const { supabase, user } =
+    await requireManagement();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const name = readField(
+    formData,
+    "name"
+  );
 
-  if (authError || !user) {
-    redirect("/login");
-  }
+  const institutionType = readField(
+    formData,
+    "institution_type"
+  );
 
-  const name = readField(formData, "name");
-  const institutionType = readField(formData, "institution_type");
-  const sector = readField(formData, "sector");
-  const location = readField(formData, "location");
-  const website = readField(formData, "website");
-  const email = readField(formData, "email");
-  const phone = readField(formData, "phone");
-  const source = readField(formData, "source");
-  const status = readField(formData, "status") || "prospect";
-  const nextAction = readField(formData, "next_action");
-  const followUpValue = readField(formData, "next_follow_up_at");
+  const sector = readField(
+    formData,
+    "sector"
+  );
+
+  const location = readField(
+    formData,
+    "location"
+  );
+
+  const website = readField(
+    formData,
+    "website"
+  );
+
+  const email = readField(
+    formData,
+    "email"
+  );
+
+  const phone = readField(
+    formData,
+    "phone"
+  );
+
+  const source = readField(
+    formData,
+    "source"
+  );
+
+  const status =
+    readField(formData, "status") ||
+    "prospect";
+
+  const nextAction = readField(
+    formData,
+    "next_action"
+  );
+
+  const followUpValue = readField(
+    formData,
+    "next_follow_up_at"
+  );
 
   if (!name) {
     redirect(
@@ -40,12 +84,20 @@ export async function createInstitution(formData: FormData) {
     );
   }
 
-  let nextFollowUpAt: string | null = null;
+  let nextFollowUpAt:
+    | string
+    | null = null;
 
   if (followUpValue) {
-    const followUpDate = new Date(followUpValue);
+    const followUpDate = new Date(
+      followUpValue
+    );
 
-    if (Number.isNaN(followUpDate.getTime())) {
+    if (
+      Number.isNaN(
+        followUpDate.getTime()
+      )
+    ) {
       redirect(
         `/institutions?error=${encodeURIComponent(
           "Enter a valid follow-up date"
@@ -53,33 +105,44 @@ export async function createInstitution(formData: FormData) {
       );
     }
 
-    nextFollowUpAt = followUpDate.toISOString();
+    nextFollowUpAt =
+      followUpDate.toISOString();
   }
 
-  const { error } = await supabase.from("institutions").insert({
-    name,
-    institution_type: institutionType || null,
-    sector: sector || null,
-    location: location || null,
-    website: website || null,
-    email: email || null,
-    phone: phone || null,
-    source: source || null,
-    status,
-    assigned_to: user.id,
-    next_action: nextAction || null,
-    next_follow_up_at: nextFollowUpAt,
-    created_by: user.id,
-  });
+  const { error } = await supabase
+    .from("institutions")
+    .insert({
+      name,
+      institution_type:
+        institutionType || null,
+      sector: sector || null,
+      location: location || null,
+      website: website || null,
+      email: email || null,
+      phone: phone || null,
+      source: source || null,
+      status,
+      assigned_to: user.id,
+      next_action:
+        nextAction || null,
+      next_follow_up_at:
+        nextFollowUpAt,
+      created_by: user.id,
+    });
 
   if (error) {
     redirect(
-      `/institutions?error=${encodeURIComponent(error.message)}`
+      `/institutions?error=${encodeURIComponent(
+        error.message
+      )}`
     );
   }
 
   revalidatePath("/");
+  revalidatePath("/management");
   revalidatePath("/institutions");
+  revalidatePath("/my-institutions");
+  revalidatePath("/my-workspace");
 
   redirect(
     `/institutions?success=${encodeURIComponent(
@@ -88,49 +151,75 @@ export async function createInstitution(formData: FormData) {
   );
 }
 
-function parseCsv(csvText: string): string[][] {
+function parseCsv(
+  csvText: string
+): string[][] {
   const rows: string[][] = [];
 
   let currentRow: string[] = [];
   let currentField = "";
   let insideQuotes = false;
 
-  for (let index = 0; index < csvText.length; index += 1) {
-    const character = csvText[index];
+  for (
+    let index = 0;
+    index < csvText.length;
+    index += 1
+  ) {
+    const character =
+      csvText[index];
 
     if (character === '"') {
-      const nextCharacter = csvText[index + 1];
+      const nextCharacter =
+        csvText[index + 1];
 
-      if (insideQuotes && nextCharacter === '"') {
+      if (
+        insideQuotes &&
+        nextCharacter === '"'
+      ) {
         currentField += '"';
         index += 1;
       } else {
-        insideQuotes = !insideQuotes;
+        insideQuotes =
+          !insideQuotes;
       }
 
       continue;
     }
 
-    if (character === "," && !insideQuotes) {
-      currentRow.push(currentField.trim());
+    if (
+      character === "," &&
+      !insideQuotes
+    ) {
+      currentRow.push(
+        currentField.trim()
+      );
+
       currentField = "";
       continue;
     }
 
     if (
-      (character === "\n" || character === "\r") &&
+      (character === "\n" ||
+        character === "\r") &&
       !insideQuotes
     ) {
       if (
         character === "\r" &&
-        csvText[index + 1] === "\n"
+        csvText[index + 1] ===
+          "\n"
       ) {
         index += 1;
       }
 
-      currentRow.push(currentField.trim());
+      currentRow.push(
+        currentField.trim()
+      );
 
-      if (currentRow.some((value) => value !== "")) {
+      if (
+        currentRow.some(
+          (value) => value !== ""
+        )
+      ) {
         rows.push(currentRow);
       }
 
@@ -142,16 +231,24 @@ function parseCsv(csvText: string): string[][] {
     currentField += character;
   }
 
-  currentRow.push(currentField.trim());
+  currentRow.push(
+    currentField.trim()
+  );
 
-  if (currentRow.some((value) => value !== "")) {
+  if (
+    currentRow.some(
+      (value) => value !== ""
+    )
+  ) {
     rows.push(currentRow);
   }
 
   return rows;
 }
 
-function normaliseHeader(value: string) {
+function normaliseHeader(
+  value: string
+) {
   return value
     .replace(/^\uFEFF/, "")
     .trim()
@@ -164,11 +261,19 @@ function getCsvValue(
   headerMap: Map<string, number>,
   possibleHeaders: string[]
 ) {
-  for (const header of possibleHeaders) {
-    const columnIndex = headerMap.get(header);
+  for (
+    const header of
+    possibleHeaders
+  ) {
+    const columnIndex =
+      headerMap.get(header);
 
-    if (columnIndex !== undefined) {
-      return String(row[columnIndex] || "").trim();
+    if (
+      columnIndex !== undefined
+    ) {
+      return String(
+        row[columnIndex] || ""
+      ).trim();
     }
   }
 
@@ -178,44 +283,16 @@ function getCsvValue(
 export async function importInstitutionsCsv(
   formData: FormData
 ) {
-  const supabase = await createClient();
+  const { supabase, user } =
+    await requireSuperAdmin();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const permittedRoles = [
-    "super_admin",
-    "management",
-    "team_lead",
-  ];
+  const uploadedFile =
+    formData.get("csv_file");
 
   if (
-    !profile ||
-    !permittedRoles.includes(profile.role)
-  ) {
-    redirect(
-      `/institutions/import?error=${encodeURIComponent(
-        "You are not authorised to import institutions"
-      )}`
-    );
-  }
-
-  const uploadedFile = formData.get("csv_file");
-
-  if (
-    !(uploadedFile instanceof File) ||
+    !(
+      uploadedFile instanceof File
+    ) ||
     uploadedFile.size === 0
   ) {
     redirect(
@@ -225,7 +302,11 @@ export async function importInstitutionsCsv(
     );
   }
 
-  if (!uploadedFile.name.toLowerCase().endsWith(".csv")) {
+  if (
+    !uploadedFile.name
+      .toLowerCase()
+      .endsWith(".csv")
+  ) {
     redirect(
       `/institutions/import?error=${encodeURIComponent(
         "The uploaded file must be a CSV file"
@@ -233,7 +314,10 @@ export async function importInstitutionsCsv(
     );
   }
 
-  if (uploadedFile.size > 5 * 1024 * 1024) {
+  if (
+    uploadedFile.size >
+    5 * 1024 * 1024
+  ) {
     redirect(
       `/institutions/import?error=${encodeURIComponent(
         "The CSV file must be smaller than 5 MB"
@@ -241,7 +325,9 @@ export async function importInstitutionsCsv(
     );
   }
 
-  const csvText = await uploadedFile.text();
+  const csvText =
+    await uploadedFile.text();
+
   const rows = parseCsv(csvText);
 
   if (rows.length < 2) {
@@ -260,17 +346,28 @@ export async function importInstitutionsCsv(
     );
   }
 
-  const headers = rows[0].map(normaliseHeader);
+  const headers =
+    rows[0].map(
+      normaliseHeader
+    );
 
-  const headerMap = new Map<string, number>();
+  const headerMap =
+    new Map<string, number>();
 
-  headers.forEach((header, index) => {
-    headerMap.set(header, index);
-  });
+  headers.forEach(
+    (header, index) => {
+      headerMap.set(
+        header,
+        index
+      );
+    }
+  );
 
   const hasNameColumn =
     headerMap.has("name") ||
-    headerMap.has("institution_name");
+    headerMap.has(
+      "institution_name"
+    );
 
   if (!hasNameColumn) {
     redirect(
@@ -280,29 +377,48 @@ export async function importInstitutionsCsv(
     );
   }
 
-  const { data: existingInstitutions } = await supabase
+  const {
+    data: existingInstitutions,
+    error: existingError,
+  } = await supabase
     .from("institutions")
     .select("name");
 
-  const existingNames = new Set(
-    (existingInstitutions || []).map((institution) =>
-      institution.name.trim().toLowerCase()
-    )
-  );
+  if (existingError) {
+    redirect(
+      `/institutions/import?error=${encodeURIComponent(
+        existingError.message
+      )}`
+    );
+  }
 
-  const validStatuses = new Set([
-    "prospect",
-    "engaged",
-    "active_opportunity",
-    "active_partner",
-    "deferred",
-    "lost",
-    "inactive",
-  ]);
+  const existingNames =
+    new Set(
+      (
+        existingInstitutions || []
+      ).map((institution) =>
+        institution.name
+          .trim()
+          .toLowerCase()
+      )
+    );
+
+  const validStatuses =
+    new Set([
+      "prospect",
+      "engaged",
+      "active_opportunity",
+      "active_partner",
+      "deferred",
+      "lost",
+      "inactive",
+    ]);
 
   const recordsToInsert: Array<{
     name: string;
-    institution_type: string | null;
+    institution_type:
+      | string
+      | null;
     sector: string | null;
     location: string | null;
     website: string | null;
@@ -310,56 +426,97 @@ export async function importInstitutionsCsv(
     phone: string | null;
     source: string | null;
     status: string;
-    next_action: string | null;
-    next_follow_up_at: string | null;
+    next_action:
+      | string
+      | null;
+    next_follow_up_at:
+      | string
+      | null;
     assigned_to: string;
     created_by: string;
   }> = [];
 
   let skippedRows = 0;
 
-  for (const row of rows.slice(1)) {
-    const name = getCsvValue(row, headerMap, [
-      "name",
-      "institution_name",
-    ]);
+  for (
+    const row of rows.slice(1)
+  ) {
+    const name = getCsvValue(
+      row,
+      headerMap,
+      [
+        "name",
+        "institution_name",
+      ]
+    );
 
     if (!name) {
       skippedRows += 1;
       continue;
     }
 
-    const normalisedName = name.toLowerCase();
+    const normalisedName =
+      name.toLowerCase();
 
-    if (existingNames.has(normalisedName)) {
+    if (
+      existingNames.has(
+        normalisedName
+      )
+    ) {
       skippedRows += 1;
       continue;
     }
 
-    const rawStatus = getCsvValue(row, headerMap, [
-      "status",
-      "institution_status",
-    ])
-      .toLowerCase()
-      .replace(/[\s-]+/g, "_");
+    const rawStatus =
+      getCsvValue(
+        row,
+        headerMap,
+        [
+          "status",
+          "institution_status",
+        ]
+      )
+        .toLowerCase()
+        .replace(
+          /[\s-]+/g,
+          "_"
+        );
 
-    const status = validStatuses.has(rawStatus)
-      ? rawStatus
-      : "prospect";
+    const status =
+      validStatuses.has(
+        rawStatus
+      )
+        ? rawStatus
+        : "prospect";
 
-    const followUpValue = getCsvValue(row, headerMap, [
-      "next_follow_up_at",
-      "follow_up_date",
-      "follow_up",
-    ]);
+    const followUpValue =
+      getCsvValue(
+        row,
+        headerMap,
+        [
+          "next_follow_up_at",
+          "follow_up_date",
+          "follow_up",
+        ]
+      );
 
-    let nextFollowUpAt: string | null = null;
+    let nextFollowUpAt:
+      | string
+      | null = null;
 
     if (followUpValue) {
-      const parsedDate = new Date(followUpValue);
+      const parsedDate =
+        new Date(
+          followUpValue
+        );
 
-      if (!Number.isNaN(parsedDate.getTime())) {
-        nextFollowUpAt = parsedDate.toISOString();
+      if (
+        !Number.isNaN(
+          parsedDate.getTime()
+        )
+      ) {
+        nextFollowUpAt =
+          parsedDate.toISOString();
       }
     }
 
@@ -367,65 +524,101 @@ export async function importInstitutionsCsv(
       name,
 
       institution_type:
-        getCsvValue(row, headerMap, [
-          "institution_type",
-          "type",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          [
+            "institution_type",
+            "type",
+          ]
+        ) || null,
 
       sector:
-        getCsvValue(row, headerMap, [
-          "sector",
-          "industry",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          [
+            "sector",
+            "industry",
+          ]
+        ) || null,
 
       location:
-        getCsvValue(row, headerMap, [
-          "location",
-          "county",
-          "city",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          [
+            "location",
+            "county",
+            "city",
+          ]
+        ) || null,
 
       website:
-        getCsvValue(row, headerMap, [
-          "website",
-          "url",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          [
+            "website",
+            "url",
+          ]
+        ) || null,
 
       email:
-        getCsvValue(row, headerMap, [
-          "email",
-          "general_email",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          [
+            "email",
+            "general_email",
+          ]
+        ) || null,
 
       phone:
-        getCsvValue(row, headerMap, [
-          "phone",
-          "telephone",
-          "mobile",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          [
+            "phone",
+            "telephone",
+            "mobile",
+          ]
+        ) || null,
 
       source:
-        getCsvValue(row, headerMap, [
-          "source",
-          "lead_source",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          [
+            "source",
+            "lead_source",
+          ]
+        ) || null,
 
       status,
 
       next_action:
-        getCsvValue(row, headerMap, [
-          "next_action",
-        ]) || null,
+        getCsvValue(
+          row,
+          headerMap,
+          ["next_action"]
+        ) || null,
 
-      next_follow_up_at: nextFollowUpAt,
+      next_follow_up_at:
+        nextFollowUpAt,
+
       assigned_to: user.id,
       created_by: user.id,
     });
 
-    existingNames.add(normalisedName);
+    existingNames.add(
+      normalisedName
+    );
   }
 
-  if (recordsToInsert.length === 0) {
+  if (
+    recordsToInsert.length === 0
+  ) {
     redirect(
       `/institutions/import?error=${encodeURIComponent(
         "No new institutions were found. Records may be blank or already exist."
@@ -433,9 +626,10 @@ export async function importInstitutionsCsv(
     );
   }
 
-  const { error: insertError } = await supabase
-    .from("institutions")
-    .insert(recordsToInsert);
+  const { error: insertError } =
+    await supabase
+      .from("institutions")
+      .insert(recordsToInsert);
 
   if (insertError) {
     redirect(
@@ -446,8 +640,17 @@ export async function importInstitutionsCsv(
   }
 
   revalidatePath("/");
+  revalidatePath("/management");
   revalidatePath("/institutions");
-  revalidatePath("/institutions/import");
+  revalidatePath(
+    "/institutions/import"
+  );
+  revalidatePath(
+    "/my-institutions"
+  );
+  revalidatePath(
+    "/my-workspace"
+  );
 
   redirect(
     `/institutions?success=${encodeURIComponent(

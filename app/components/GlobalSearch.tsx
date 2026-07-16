@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { AccessLevel } from "@/lib/roles";
 
 type GlobalSearchProps = {
-  isAdmin: boolean;
+  accessLevel: AccessLevel;
+  userId: string;
 };
 
 type InstitutionRecord = {
@@ -28,136 +35,276 @@ type ContactRecord = {
 
 type SearchItem = {
   id: string;
-  type: "Page" | "Institution" | "Contact";
+  type:
+    | "Page"
+    | "Institution"
+    | "Contact";
   title: string;
   subtitle: string;
   href: string;
   keywords: string;
 };
 
-const pageItems: SearchItem[] = [
+const teamMemberPages: SearchItem[] = [
   {
-    id: "page-dashboard",
+    id: "page-my-workspace",
     type: "Page",
-    title: "Dashboard",
-    subtitle: "CRM overview and institutional pipeline",
-    href: "/",
-    keywords: "home overview cockpit dashboard",
-  },
-  {
-    id: "page-institutions",
-    type: "Page",
-    title: "Institutions",
-    subtitle: "Institutional database and SACCO master records",
-    href: "/institutions",
+    title: "My Workspace",
+    subtitle:
+      "My assigned accounts and activity overview",
+    href: "/my-workspace",
     keywords:
-      "institutions saccos banks partners prospects database",
+      "workspace dashboard overview home",
   },
   {
-    id: "page-contacts",
+    id: "page-my-institutions",
     type: "Page",
-    title: "Contacts",
-    subtitle: "Institutional contacts and decision-makers",
-    href: "/contacts",
+    title: "My Institutions",
+    subtitle:
+      "Institutions assigned to my workspace",
+    href: "/my-institutions",
     keywords:
-      "contacts people phonebook decision makers ceo managers",
+      "institutions assigned accounts saccos partners",
   },
   {
-    id: "page-opportunities",
+    id: "page-my-contacts",
     type: "Page",
-    title: "Opportunities",
-    subtitle: "Business opportunities and acquisition pipeline",
-    href: "/opportunities",
+    title: "My Contacts",
+    subtitle:
+      "Contacts from my assigned institutions",
+    href: "/my-contacts",
     keywords:
-      "opportunities deals pipeline proposals sales business",
+      "contacts people phonebook decision makers",
   },
   {
-    id: "page-tasks",
+    id: "page-my-opportunities",
     type: "Page",
-    title: "Tasks",
-    subtitle: "Follow-ups, activities and staff assignments",
-    href: "/tasks",
-    keywords: "tasks actions follow ups assignments work",
-  },
-  {
-    id: "page-reports",
-    type: "Page",
-    title: "Daily & Weekly Reports",
-    subtitle: "Employee daily and weekly activity reports",
-    href: "/reports",
+    title: "My Opportunities",
+    subtitle:
+      "Opportunities assigned to me",
+    href: "/my-opportunities",
     keywords:
-      "reports daily weekly reporting employee performance",
+      "opportunities pipeline proposals business",
   },
   {
-    id: "page-academy",
+    id: "page-my-tasks",
     type: "Page",
-    title: "KIPROD Academy",
-    subtitle: "Internal courses and capability development",
-    href: "/academy",
+    title: "My Tasks",
+    subtitle:
+      "My assignments and follow-up actions",
+    href: "/my-tasks",
     keywords:
-      "academy courses training learning lessons knowledge",
+      "tasks work actions follow ups",
+  },
+  {
+    id: "page-my-reports",
+    type: "Page",
+    title: "My Reports",
+    subtitle:
+      "My daily and weekly reports",
+    href: "/my-reports",
+    keywords:
+      "reports daily weekly reporting",
+  },
+  {
+    id: "page-my-academy",
+    type: "Page",
+    title: "My Academy",
+    subtitle:
+      "My assigned learning programmes",
+    href: "/my-academy",
+    keywords:
+      "academy courses learning lessons",
   },
   {
     id: "page-profile",
     type: "Page",
     title: "My Profile",
-    subtitle: "View and manage your CRM profile",
+    subtitle:
+      "View my CRM profile",
     href: "/profile",
-    keywords: "profile account personal details",
-  },
-  {
-    id: "page-password",
-    type: "Page",
-    title: "Change Password",
-    subtitle: "Update your CRM account password",
-    href: "/change-password",
-    keywords: "password security account",
+    keywords:
+      "profile account personal details",
   },
 ];
 
-function formatLabel(value: string | null) {
+const managementPages: SearchItem[] = [
+  {
+    id: "page-management",
+    type: "Page",
+    title: "Management Dashboard",
+    subtitle:
+      "Organisation-wide CRM overview",
+    href: "/management",
+    keywords:
+      "management dashboard overview cockpit",
+  },
+  {
+    id: "page-management-centre",
+    type: "Page",
+    title: "Management Centre",
+    subtitle:
+      "Management review and oversight tools",
+    href: "/management/centre",
+    keywords:
+      "management centre oversight review",
+  },
+  {
+    id: "page-institutions",
+    type: "Page",
+    title: "Institutions",
+    subtitle:
+      "Organisation-wide institutional database",
+    href: "/institutions",
+    keywords:
+      "institutions saccos banks partners prospects",
+  },
+  {
+    id: "page-contacts",
+    type: "Page",
+    title: "Contacts",
+    subtitle:
+      "Organisation-wide institutional contacts",
+    href: "/contacts",
+    keywords:
+      "contacts people decision makers ceo",
+  },
+  {
+    id: "page-opportunities",
+    type: "Page",
+    title: "Opportunities",
+    subtitle:
+      "Organisation-wide acquisition pipeline",
+    href: "/opportunities",
+    keywords:
+      "opportunities deals pipeline proposals",
+  },
+  {
+    id: "page-tasks",
+    type: "Page",
+    title: "Tasks",
+    subtitle:
+      "Team assignments and follow-ups",
+    href: "/tasks",
+    keywords:
+      "tasks actions assignments work",
+  },
+  {
+    id: "page-reports",
+    type: "Page",
+    title: "Team Reports",
+    subtitle:
+      "Daily and weekly team reports",
+    href: "/reports",
+    keywords:
+      "reports daily weekly performance",
+  },
+  {
+    id: "page-academy",
+    type: "Page",
+    title: "KIPROD Academy",
+    subtitle:
+      "Courses and capability development",
+    href: "/academy",
+    keywords:
+      "academy courses training learning",
+  },
+  {
+    id: "page-profile",
+    type: "Page",
+    title: "My Profile",
+    subtitle:
+      "View my CRM profile",
+    href: "/profile",
+    keywords:
+      "profile account personal details",
+  },
+];
+
+function formatLabel(
+  value: string | null
+) {
   if (!value) {
     return "";
   }
 
   return value
     .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase()
+    );
 }
 
 export default function GlobalSearch({
-  isAdmin,
+  accessLevel,
+  userId,
 }: GlobalSearchProps) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
+  const supabase = useMemo(
+    () => createClient(),
+    []
+  );
 
-  const [institutions, setInstitutions] = useState<
+  const inputRef =
+    useRef<HTMLInputElement>(null);
+
+  const [open, setOpen] =
+    useState(false);
+
+  const [query, setQuery] =
+    useState("");
+
+  const [
+    activeIndex,
+    setActiveIndex,
+  ] = useState(0);
+
+  const [
+    institutions,
+    setInstitutions,
+  ] = useState<
     InstitutionRecord[]
   >([]);
 
-  const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  const [contacts, setContacts] =
+    useState<ContactRecord[]>([]);
 
-  const [loaded, setLoaded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
+  const [loaded, setLoaded] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [loadError, setLoadError] =
+    useState("");
 
   useEffect(() => {
-    function handleShortcut(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
+    setLoaded(false);
+    setInstitutions([]);
+    setContacts([]);
+    setLoadError("");
+  }, [accessLevel, userId]);
+
+  useEffect(() => {
+    function handleShortcut(
+      event: KeyboardEvent
+    ) {
+      const target =
+        event.target as HTMLElement | null;
 
       const typing =
         target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
+        target?.tagName ===
+          "TEXTAREA" ||
         target?.tagName === "SELECT" ||
-        Boolean(target?.isContentEditable);
+        Boolean(
+          target?.isContentEditable
+        );
 
       if (
-        (event.ctrlKey || event.metaKey) &&
+        (event.ctrlKey ||
+          event.metaKey) &&
         event.key.toLowerCase() === "k"
       ) {
         event.preventDefault();
@@ -165,7 +312,10 @@ export default function GlobalSearch({
         return;
       }
 
-      if (event.key === "/" && !typing) {
+      if (
+        event.key === "/" &&
+        !typing
+      ) {
         event.preventDefault();
         setOpen(true);
         return;
@@ -176,7 +326,10 @@ export default function GlobalSearch({
       }
     }
 
-    document.addEventListener("keydown", handleShortcut);
+    document.addEventListener(
+      "keydown",
+      handleShortcut
+    );
 
     return () => {
       document.removeEventListener(
@@ -191,22 +344,34 @@ export default function GlobalSearch({
       return;
     }
 
-    const previousOverflow = document.body.style.overflow;
+    const previousOverflow =
+      document.body.style.overflow;
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
-    const focusTimer = window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 30);
+    const focusTimer =
+      window.setTimeout(() => {
+        inputRef.current?.focus();
+      }, 30);
 
     return () => {
-      window.clearTimeout(focusTimer);
-      document.body.style.overflow = previousOverflow;
+      window.clearTimeout(
+        focusTimer
+      );
+
+      document.body.style.overflow =
+        previousOverflow;
     };
   }, [open]);
 
   useEffect(() => {
-    if (!open || loaded || loading) {
+    if (
+      !open ||
+      loaded ||
+      loading ||
+      !userId
+    ) {
       return;
     }
 
@@ -216,23 +381,97 @@ export default function GlobalSearch({
       setLoading(true);
       setLoadError("");
 
-      const [institutionResult, contactResult] =
-        await Promise.all([
-          supabase
-            .from("institutions")
-            .select(
-              `
-                id,
-                name,
-                institution_type,
-                location,
-                status
-              `
-            )
-            .order("name", { ascending: true })
-            .limit(500),
+      let institutionQuery =
+        supabase
+          .from("institutions")
+          .select(
+            `
+              id,
+              name,
+              institution_type,
+              location,
+              status
+            `
+          );
 
-          supabase
+      if (
+        accessLevel ===
+        "team_member"
+      ) {
+        institutionQuery =
+          institutionQuery.eq(
+            "assigned_to",
+            userId
+          );
+      }
+
+      const institutionResult =
+        await institutionQuery
+          .order("name", {
+            ascending: true,
+          })
+          .limit(500);
+
+      if (!active) {
+        return;
+      }
+
+      const visibleInstitutions =
+        institutionResult.data || [];
+
+      let visibleContacts: ContactRecord[] =
+        [];
+
+      let contactError:
+        | string
+        | null = null;
+
+      if (
+        accessLevel ===
+        "team_member"
+      ) {
+        const institutionIds =
+          visibleInstitutions.map(
+            (institution) =>
+              institution.id
+          );
+
+        if (
+          institutionIds.length > 0
+        ) {
+          const contactResult =
+            await supabase
+              .from("contacts")
+              .select(
+                `
+                  id,
+                  institution_id,
+                  full_name,
+                  job_title,
+                  department,
+                  email,
+                  phone
+                `
+              )
+              .in(
+                "institution_id",
+                institutionIds
+              )
+              .order("full_name", {
+                ascending: true,
+              })
+              .limit(500);
+
+          visibleContacts =
+            contactResult.data || [];
+
+          contactError =
+            contactResult.error
+              ?.message || null;
+        }
+      } else {
+        const contactResult =
+          await supabase
             .from("contacts")
             .select(
               `
@@ -245,18 +484,35 @@ export default function GlobalSearch({
                 phone
               `
             )
-            .order("full_name", { ascending: true })
-            .limit(500),
-        ]);
+            .order("full_name", {
+              ascending: true,
+            })
+            .limit(500);
+
+        visibleContacts =
+          contactResult.data || [];
+
+        contactError =
+          contactResult.error
+            ?.message || null;
+      }
 
       if (!active) {
         return;
       }
 
-      setInstitutions(institutionResult.data || []);
-      setContacts(contactResult.data || []);
+      setInstitutions(
+        visibleInstitutions
+      );
 
-      if (institutionResult.error || contactResult.error) {
+      setContacts(
+        visibleContacts
+      );
+
+      if (
+        institutionResult.error ||
+        contactError
+      ) {
         setLoadError(
           "Some CRM records could not be loaded. Page navigation is still available."
         );
@@ -271,109 +527,162 @@ export default function GlobalSearch({
     return () => {
       active = false;
     };
-  }, [loaded, loading, open, supabase]);
-
-  const institutionNames = useMemo(
-    () =>
-      new Map(
-        institutions.map((institution) => [
-          institution.id,
-          institution.name,
-        ])
-      ),
-    [institutions]
-  );
-
-  const searchableItems = useMemo(() => {
-    const pages = isAdmin
-      ? [
-          ...pageItems,
-          {
-            id: "page-admin",
-            type: "Page" as const,
-            title: "Super Admin Centre",
-            subtitle:
-              "Institution, contact and SACCO administration",
-            href: "/admin",
-            keywords:
-              "admin super administration management imports",
-          },
-        ]
-      : pageItems;
-
-    const institutionItems: SearchItem[] =
-      institutions.map((institution) => ({
-        id: `institution-${institution.id}`,
-        type: "Institution",
-        title: institution.name,
-        subtitle: [
-          institution.institution_type,
-          institution.location,
-          formatLabel(institution.status),
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        href: `/institutions/${institution.id}`,
-        keywords: [
-          institution.name,
-          institution.institution_type,
-          institution.location,
-          institution.status,
-          "institution partner sacco",
-        ]
-          .filter(Boolean)
-          .join(" "),
-      }));
-
-    const contactItems: SearchItem[] = contacts.map(
-      (contact) => ({
-        id: `contact-${contact.id}`,
-        type: "Contact",
-        title: contact.full_name,
-        subtitle: [
-          contact.job_title,
-          institutionNames.get(contact.institution_id),
-          contact.phone || contact.email,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        href: `/contacts/${contact.id}`,
-        keywords: [
-          contact.full_name,
-          contact.job_title,
-          contact.department,
-          contact.email,
-          contact.phone,
-          institutionNames.get(contact.institution_id),
-          "contact person",
-        ]
-          .filter(Boolean)
-          .join(" "),
-      })
-    );
-
-    return [
-      ...pages,
-      ...institutionItems,
-      ...contactItems,
-    ];
   }, [
-    contacts,
-    institutionNames,
-    institutions,
-    isAdmin,
+    accessLevel,
+    loaded,
+    loading,
+    open,
+    supabase,
+    userId,
   ]);
 
+  const institutionNames =
+    useMemo(
+      () =>
+        new Map(
+          institutions.map(
+            (institution) => [
+              institution.id,
+              institution.name,
+            ]
+          )
+        ),
+      [institutions]
+    );
+
+  const searchableItems =
+    useMemo(() => {
+      let pages =
+        accessLevel ===
+        "team_member"
+          ? teamMemberPages
+          : managementPages;
+
+      if (
+        accessLevel ===
+        "super_admin"
+      ) {
+        pages = [
+          ...pages,
+          {
+            id: "page-admin",
+            type: "Page",
+            title:
+              "Super Admin Centre",
+            subtitle:
+              "User access, imports and system administration",
+            href: "/admin",
+            keywords:
+              "admin super access roles imports",
+          },
+        ];
+      }
+
+      const institutionItems:
+        SearchItem[] =
+        institutions.map(
+          (institution) => ({
+            id: `institution-${institution.id}`,
+            type: "Institution",
+            title: institution.name,
+
+            subtitle: [
+              institution.institution_type,
+              institution.location,
+              formatLabel(
+                institution.status
+              ),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+
+            href:
+              accessLevel ===
+              "team_member"
+                ? `/my-institutions/${institution.id}`
+                : `/institutions/${institution.id}`,
+
+            keywords: [
+              institution.name,
+              institution.institution_type,
+              institution.location,
+              institution.status,
+              "institution partner sacco",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          })
+        );
+
+      const contactItems:
+        SearchItem[] = contacts.map(
+        (contact) => ({
+          id: `contact-${contact.id}`,
+          type: "Contact",
+          title: contact.full_name,
+
+          subtitle: [
+            contact.job_title,
+            institutionNames.get(
+              contact.institution_id
+            ),
+            contact.phone ||
+              contact.email,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+
+          href:
+            accessLevel ===
+            "team_member"
+              ? `/my-institutions/${contact.institution_id}`
+              : `/contacts/${contact.id}`,
+
+          keywords: [
+            contact.full_name,
+            contact.job_title,
+            contact.department,
+            contact.email,
+            contact.phone,
+            institutionNames.get(
+              contact.institution_id
+            ),
+            "contact person",
+          ]
+            .filter(Boolean)
+            .join(" "),
+        })
+      );
+
+      return [
+        ...pages,
+        ...institutionItems,
+        ...contactItems,
+      ];
+    }, [
+      accessLevel,
+      contacts,
+      institutionNames,
+      institutions,
+    ]);
+
   const results = useMemo(() => {
-    const search = query.trim().toLowerCase();
+    const search = query
+      .trim()
+      .toLowerCase();
 
     if (!search) {
       return searchableItems
-        .filter((item) => item.type === "Page")
+        .filter(
+          (item) =>
+            item.type === "Page"
+        )
         .slice(0, 10);
     }
 
-    const terms = search.split(/\s+/).filter(Boolean);
+    const terms = search
+      .split(/\s+/)
+      .filter(Boolean);
 
     return searchableItems
       .filter((item) => {
@@ -403,7 +712,9 @@ export default function GlobalSearch({
     setActiveIndex(0);
   }
 
-  function openResult(item: SearchItem) {
+  function openResult(
+    item: SearchItem
+  ) {
     closeSearch();
     router.push(item.href);
   }
@@ -411,15 +722,28 @@ export default function GlobalSearch({
   function handleInputKeyDown(
     event: React.KeyboardEvent<HTMLInputElement>
   ) {
-    if (event.key === "ArrowDown") {
+    if (
+      results.length === 0
+    ) {
+      return;
+    }
+
+    if (
+      event.key === "ArrowDown"
+    ) {
       event.preventDefault();
 
       setActiveIndex((current) =>
-        Math.min(current + 1, results.length - 1)
+        Math.min(
+          current + 1,
+          results.length - 1
+        )
       );
     }
 
-    if (event.key === "ArrowUp") {
+    if (
+      event.key === "ArrowUp"
+    ) {
       event.preventDefault();
 
       setActiveIndex((current) =>
@@ -427,9 +751,15 @@ export default function GlobalSearch({
       );
     }
 
-    if (event.key === "Enter" && results[activeIndex]) {
+    if (
+      event.key === "Enter" &&
+      results[activeIndex]
+    ) {
       event.preventDefault();
-      openResult(results[activeIndex]);
+
+      openResult(
+        results[activeIndex]
+      );
     }
   }
 
@@ -438,24 +768,20 @@ export default function GlobalSearch({
       <div className="ml-auto flex shrink-0 md:ml-0 md:min-w-0 md:flex-1 md:justify-center">
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() =>
+            setOpen(true)
+          }
           aria-label="Search KIPROD CRM"
           aria-haspopup="dialog"
           className="hidden w-full max-w-xl items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-sm text-slate-500 transition hover:border-amber-400 hover:bg-white md:flex"
         >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
+          <span className="text-base">
+            ⌕
+          </span>
 
           <span className="min-w-0 flex-1 truncate">
-            Search pages, institutions and contacts...
+            Search pages, institutions
+            and contacts...
           </span>
 
           <kbd className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-400">
@@ -465,165 +791,150 @@ export default function GlobalSearch({
 
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() =>
+            setOpen(true)
+          }
           aria-label="Search KIPROD CRM"
           aria-haspopup="dialog"
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-amber-400 hover:bg-amber-50 md:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-lg text-slate-600 transition hover:border-amber-400 hover:bg-white md:hidden"
         >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
+          ⌕
         </button>
       </div>
 
       {open && (
-        <div
-          className="fixed inset-0 z-[90] flex items-start justify-center bg-slate-950/65 px-3 pt-[8vh] backdrop-blur-sm sm:px-6"
-          onMouseDown={closeSearch}
-        >
-          <div
+        <div className="fixed inset-0 z-[80] flex items-start justify-center bg-slate-950/70 px-3 pt-16 backdrop-blur-sm sm:px-6 sm:pt-24">
+          <button
+            type="button"
+            aria-label="Close search"
+            onClick={closeSearch}
+            className="absolute inset-0"
+          />
+
+          <section
             role="dialog"
             aria-modal="true"
             aria-label="Search KIPROD CRM"
-            onMouseDown={(event) =>
-              event.stopPropagation()
-            }
-            className="flex max-h-[78vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-white shadow-2xl"
+            className="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
           >
-            <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5 shrink-0 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
+            <div className="border-b border-slate-200 p-4 sm:p-5">
+              <div className="flex items-center gap-3">
+                <span className="text-xl text-slate-500">
+                  ⌕
+                </span>
 
-              <input
-                ref={inputRef}
-                type="search"
-                value={query}
-                onChange={(event) =>
-                  setQuery(event.target.value)
-                }
-                onKeyDown={handleInputKeyDown}
-                placeholder="Search KIPROD CRM..."
-                className="min-w-0 flex-1 border-0 bg-transparent px-0 py-2 text-base font-bold text-slate-950 outline-none placeholder:text-slate-400"
-              />
+                <input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(event) =>
+                    setQuery(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={
+                    handleInputKeyDown
+                  }
+                  placeholder="Search the CRM..."
+                  className="min-w-0 flex-1 bg-transparent text-base font-bold text-slate-950 outline-none placeholder:font-normal placeholder:text-slate-400"
+                />
 
-              <button
-                type="button"
-                onClick={closeSearch}
-                className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-600"
-              >
-                ESC
-              </button>
+                <button
+                  type="button"
+                  onClick={closeSearch}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-500 transition hover:border-amber-400 hover:text-slate-950"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              <div className="flex items-center justify-between px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                  {query.trim()
-                    ? "Search Results"
-                    : "Quick Navigation"}
-                </p>
-
-                {query.trim() && (
-                  <p className="text-[10px] font-bold text-slate-400">
-                    {results.length} result
-                    {results.length === 1 ? "" : "s"}
-                  </p>
-                )}
-              </div>
-
+            <div className="max-h-[65vh] overflow-y-auto p-2 sm:p-3">
               {loading && (
-                <div className="px-4 py-8 text-center text-sm font-bold text-slate-500">
-                  Loading CRM records...
+                <div className="px-5 py-12 text-center text-sm font-bold text-slate-500">
+                  Loading available CRM
+                  records...
                 </div>
               )}
 
               {loadError && (
-                <div className="mx-2 mb-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+                <div className="m-2 rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
                   {loadError}
                 </div>
               )}
 
-              {!loading && results.length === 0 && (
-                <div className="px-4 py-12 text-center">
-                  <p className="font-black text-slate-800">
-                    No results found
-                  </p>
+              {!loading &&
+                results.length === 0 && (
+                  <div className="px-5 py-12 text-center">
+                    <p className="font-black text-slate-700">
+                      No results found
+                    </p>
 
-                  <p className="mt-2 text-sm text-slate-500">
-                    Try a page name, institution, contact,
-                    phone number or email.
-                  </p>
-                </div>
-              )}
+                    <p className="mt-2 text-sm text-slate-500">
+                      Try another name,
+                      institution or page.
+                    </p>
+                  </div>
+                )}
 
-              {results.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onMouseEnter={() =>
-                    setActiveIndex(index)
-                  }
-                  onClick={() => openResult(item)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
-                    activeIndex === index
-                      ? "bg-amber-50"
-                      : "hover:bg-slate-50"
-                  }`}
-                >
-                  <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[10px] font-black ${
-                      item.type === "Page"
-                        ? "bg-slate-950 text-amber-400"
-                        : item.type === "Institution"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-blue-50 text-blue-800"
-                    }`}
-                  >
-                    {item.type === "Page"
-                      ? "PG"
-                      : item.type === "Institution"
-                        ? "IN"
-                        : "CO"}
-                  </span>
+              {!loading &&
+                results.map(
+                  (item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() =>
+                        openResult(item)
+                      }
+                      onMouseEnter={() =>
+                        setActiveIndex(
+                          index
+                        )
+                      }
+                      className={`flex w-full items-start gap-4 rounded-2xl px-4 py-4 text-left transition ${
+                        index ===
+                        activeIndex
+                          ? "bg-amber-50"
+                          : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[10px] font-black ${
+                          item.type ===
+                          "Page"
+                            ? "bg-slate-950 text-amber-400"
+                            : item.type ===
+                                "Institution"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {item.type ===
+                        "Institution"
+                          ? "IN"
+                          : item.type ===
+                              "Contact"
+                            ? "CO"
+                            : "PG"}
+                      </span>
 
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-black text-slate-950">
-                      {item.title}
-                    </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-black text-slate-950">
+                          {item.title}
+                        </span>
 
-                    <span className="mt-1 block truncate text-xs text-slate-500">
-                      {item.subtitle || item.type}
-                    </span>
-                  </span>
+                        <span className="mt-1 block truncate text-xs text-slate-500">
+                          {item.subtitle}
+                        </span>
+                      </span>
 
-                  <span className="shrink-0 text-xs font-black text-slate-300">
-                    ↵
-                  </span>
-                </button>
-              ))}
+                      <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-500">
+                        {item.type}
+                      </span>
+                    </button>
+                  )
+                )}
             </div>
-
-            <div className="flex flex-wrap items-center gap-4 border-t border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-bold text-slate-400">
-              <span>↑ ↓ Navigate</span>
-              <span>Enter Open</span>
-              <span>Esc Close</span>
-            </div>
-          </div>
+          </section>
         </div>
       )}
     </>

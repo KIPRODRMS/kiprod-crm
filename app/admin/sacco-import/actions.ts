@@ -2,57 +2,54 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireSuperAdmin } from "@/lib/auth";
 import { SACCO_MASTER_DATA } from "./data";
 
-const IMPORT_SUBJECT = "Imported SACCO outreach history";
+const IMPORT_SUBJECT =
+  "Imported SACCO outreach history";
 
-function normaliseName(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
+function normaliseName(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
-function chunk<T>(values: T[], size: number) {
+function chunk<T>(
+  values: T[],
+  size: number
+) {
   const chunks: T[][] = [];
 
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
+  for (
+    let index = 0;
+    index < values.length;
+    index += size
+  ) {
+    chunks.push(
+      values.slice(
+        index,
+        index + size
+      )
+    );
   }
 
   return chunks;
 }
 
-async function requireAdmin() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!["super_admin", "management"].includes(profile?.role || "")) {
-    redirect("/");
-  }
-
-  return { supabase, user };
-}
-
 export async function importSaccoMasterData() {
-  const { supabase, user } = await requireAdmin();
+  const { supabase, user } =
+    await requireSuperAdmin();
 
-  const schemaCheck = await supabase
-    .from("institutions")
-    .select("id, segment, tier, asset_size_billions")
-    .limit(1);
+  const schemaCheck =
+    await supabase
+      .from("institutions")
+      .select(
+        "id, segment, tier, asset_size_billions"
+      )
+      .limit(1);
 
   if (schemaCheck.error) {
     redirect(
@@ -62,10 +59,12 @@ export async function importSaccoMasterData() {
     );
   }
 
-  const { data: existingInstitutions, error: existingError } =
-    await supabase
-      .from("institutions")
-      .select("id, name");
+  const {
+    data: existingInstitutions,
+    error: existingError,
+  } = await supabase
+    .from("institutions")
+    .select("id, name");
 
   if (existingError) {
     redirect(
@@ -75,46 +74,85 @@ export async function importSaccoMasterData() {
     );
   }
 
-  const institutionIdByName = new Map<string, string>(
-    (existingInstitutions || []).map(
-      (institution: { id: string; name: string }) => [
-        normaliseName(institution.name),
-        institution.id,
-      ]
-    )
-  );
+  const institutionIdByName =
+    new Map<string, string>(
+      (
+        existingInstitutions || []
+      ).map(
+        (institution: {
+          id: string;
+          name: string;
+        }) => [
+          normaliseName(
+            institution.name
+          ),
+          institution.id,
+        ]
+      )
+    );
 
-  const newInstitutionRecords = SACCO_MASTER_DATA.filter(
-    (record) => !institutionIdByName.has(normaliseName(record.name))
-  ).map((record) => ({
-    name: record.name,
-    institution_type: record.institution_type,
-    sector: record.sector,
-    segment: record.segment,
-    tier: record.tier,
-    asset_size_billions: record.asset_size_billions,
-    ceo_name: record.ceo_name,
-    location: record.location,
-    website: null,
-    email: record.email,
-    phone: record.phone,
-    source: record.source,
-    status: record.status,
-    outreach_status: record.outreach_status,
-    invoice_status: record.invoice_status,
-    registration_status: record.registration_status,
-    follow_up_owner: record.follow_up_owner,
-    next_action: record.next_action,
-    next_follow_up_at: record.next_follow_up_at,
-    historical_notes: record.historical_notes,
-    assigned_to: user.id,
-    created_by: user.id,
-  }));
+  const newInstitutionRecords =
+    SACCO_MASTER_DATA.filter(
+      (record) =>
+        !institutionIdByName.has(
+          normaliseName(record.name)
+        )
+    ).map((record) => ({
+      name: record.name,
+
+      institution_type:
+        record.institution_type,
+
+      sector: record.sector,
+      segment: record.segment,
+      tier: record.tier,
+
+      asset_size_billions:
+        record.asset_size_billions,
+
+      ceo_name: record.ceo_name,
+      location: record.location,
+      website: null,
+      email: record.email,
+      phone: record.phone,
+      source: record.source,
+      status: record.status,
+
+      outreach_status:
+        record.outreach_status,
+
+      invoice_status:
+        record.invoice_status,
+
+      registration_status:
+        record.registration_status,
+
+      follow_up_owner:
+        record.follow_up_owner,
+
+      next_action:
+        record.next_action,
+
+      next_follow_up_at:
+        record.next_follow_up_at,
+
+      historical_notes:
+        record.historical_notes,
+
+      assigned_to: user.id,
+      created_by: user.id,
+    }));
 
   let institutionsInserted = 0;
 
-  for (const institutionChunk of chunk(newInstitutionRecords, 80)) {
-    const { data: inserted, error } = await supabase
+  for (const institutionChunk of chunk(
+    newInstitutionRecords,
+    80
+  )) {
+    const {
+      data: inserted,
+      error,
+    } = await supabase
       .from("institutions")
       .insert(institutionChunk)
       .select("id, name");
@@ -127,31 +165,60 @@ export async function importSaccoMasterData() {
       );
     }
 
-    for (const institution of inserted || []) {
+    for (
+      const institution of
+        inserted || []
+    ) {
       institutionIdByName.set(
-        normaliseName(institution.name),
+        normaliseName(
+          institution.name
+        ),
         institution.id
       );
     }
 
-    institutionsInserted += inserted?.length || 0;
+    institutionsInserted +=
+      inserted?.length || 0;
   }
 
-  const institutionIds = Array.from(
-    new Set(
-      SACCO_MASTER_DATA.map((record) =>
-        institutionIdByName.get(normaliseName(record.name))
-      ).filter((value): value is string => Boolean(value))
-    )
-  );
+  const institutionIds =
+    Array.from(
+      new Set(
+        SACCO_MASTER_DATA.map(
+          (record) =>
+            institutionIdByName.get(
+              normaliseName(
+                record.name
+              )
+            )
+        ).filter(
+          (
+            value
+          ): value is string =>
+            Boolean(value)
+        )
+      )
+    );
 
-  const existingContactKeys = new Set<string>();
+  const existingContactKeys =
+    new Set<string>();
 
-  for (const idChunk of chunk(institutionIds, 100)) {
-    const { data: existingContacts, error } = await supabase
+  for (const idChunk of chunk(
+    institutionIds,
+    100
+  )) {
+    const {
+      data: existingContacts,
+      error,
+    } = await supabase
       .from("contacts")
-      .select("institution_id, full_name")
-      .in("institution_id", idChunk);
+      .select(
+        "institution_id, full_name"
+      )
+      .in(
+        "institution_id",
+        idChunk
+      );
 
     if (error) {
       redirect(
@@ -161,47 +228,83 @@ export async function importSaccoMasterData() {
       );
     }
 
-    for (const contact of existingContacts || []) {
+    for (
+      const contact of
+        existingContacts || []
+    ) {
       existingContactKeys.add(
-        `${contact.institution_id}:${normaliseName(contact.full_name)}`
+        `${
+          contact.institution_id
+        }:${normaliseName(
+          contact.full_name
+        )}`
       );
     }
   }
 
-  const contactsToInsert = SACCO_MASTER_DATA.flatMap((record) => {
-    const institutionId = institutionIdByName.get(
-      normaliseName(record.name)
-    );
+  const contactsToInsert =
+    SACCO_MASTER_DATA.flatMap(
+      (record) => {
+        const institutionId =
+          institutionIdByName.get(
+            normaliseName(
+              record.name
+            )
+          );
 
-    if (!institutionId) return [];
+        if (!institutionId) {
+          return [];
+        }
 
-    return record.contacts
-      .filter(
-        (contact) =>
-          !existingContactKeys.has(
-            `${institutionId}:${normaliseName(contact.full_name)}`
+        return record.contacts
+          .filter(
+            (contact) =>
+              !existingContactKeys.has(
+                `${institutionId}:${normaliseName(
+                  contact.full_name
+                )}`
+              )
           )
-      )
-      .map((contact) => ({
-        institution_id: institutionId,
-        full_name: contact.full_name,
-        job_title: contact.job_title,
-        department: contact.department,
-        email: contact.email,
-        phone: contact.phone,
-        whatsapp_number: contact.whatsapp_number,
-        is_primary: contact.is_primary,
-        decision_maker: contact.decision_maker,
-        created_by: user.id,
-      }));
-  });
+          .map((contact) => ({
+            institution_id:
+              institutionId,
+
+            full_name:
+              contact.full_name,
+
+            job_title:
+              contact.job_title,
+
+            department:
+              contact.department,
+
+            email: contact.email,
+            phone: contact.phone,
+
+            whatsapp_number:
+              contact.whatsapp_number,
+
+            is_primary:
+              contact.is_primary,
+
+            decision_maker:
+              contact.decision_maker,
+
+            created_by: user.id,
+          }));
+      }
+    );
 
   let contactsInserted = 0;
 
-  for (const contactChunk of chunk(contactsToInsert, 100)) {
-    const { error } = await supabase
-      .from("contacts")
-      .insert(contactChunk);
+  for (const contactChunk of chunk(
+    contactsToInsert,
+    100
+  )) {
+    const { error } =
+      await supabase
+        .from("contacts")
+        .insert(contactChunk);
 
     if (error) {
       redirect(
@@ -211,17 +314,31 @@ export async function importSaccoMasterData() {
       );
     }
 
-    contactsInserted += contactChunk.length;
+    contactsInserted +=
+      contactChunk.length;
   }
 
-  const institutionsWithImportedHistory = new Set<string>();
+  const institutionsWithImportedHistory =
+    new Set<string>();
 
-  for (const idChunk of chunk(institutionIds, 100)) {
-    const { data: existingHistory, error } = await supabase
+  for (const idChunk of chunk(
+    institutionIds,
+    100
+  )) {
+    const {
+      data: existingHistory,
+      error,
+    } = await supabase
       .from("interactions")
       .select("institution_id")
-      .eq("subject", IMPORT_SUBJECT)
-      .in("institution_id", idChunk);
+      .eq(
+        "subject",
+        IMPORT_SUBJECT
+      )
+      .in(
+        "institution_id",
+        idChunk
+      );
 
     if (error) {
       redirect(
@@ -231,53 +348,99 @@ export async function importSaccoMasterData() {
       );
     }
 
-    for (const interaction of existingHistory || []) {
-      institutionsWithImportedHistory.add(interaction.institution_id);
+    for (
+      const interaction of
+        existingHistory || []
+    ) {
+      institutionsWithImportedHistory.add(
+        interaction.institution_id
+      );
     }
   }
 
-  const interactionsToInsert = SACCO_MASTER_DATA.flatMap((record) => {
-    const institutionId = institutionIdByName.get(
-      normaliseName(record.name)
+  const interactionsToInsert =
+    SACCO_MASTER_DATA.flatMap(
+      (record) => {
+        const institutionId =
+          institutionIdByName.get(
+            normaliseName(
+              record.name
+            )
+          );
+
+        if (
+          !institutionId ||
+          !record.interaction ||
+          institutionsWithImportedHistory.has(
+            institutionId
+          )
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            institution_id:
+              institutionId,
+
+            interaction_type:
+              record.interaction
+                .interaction_type,
+
+            subject:
+              IMPORT_SUBJECT,
+
+            conversation_summary:
+              record.interaction
+                .conversation_summary,
+
+            customer_feedback: null,
+            objections: null,
+
+            kiprod_commitments: null,
+
+            institution_commitments:
+              null,
+
+            outcome:
+              record.interaction
+                .outcome,
+
+            sentiment:
+              record.interaction
+                .sentiment,
+
+            next_action:
+              record.interaction
+                .next_action,
+
+            follow_up_at:
+              record.interaction
+                .follow_up_at,
+
+            occurred_at:
+              record.interaction
+                .occurred_at ||
+              new Date().toISOString(),
+
+            recorded_by: user.id,
+          },
+        ];
+      }
     );
-
-    if (
-      !institutionId ||
-      !record.interaction ||
-      institutionsWithImportedHistory.has(institutionId)
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        institution_id: institutionId,
-        interaction_type: record.interaction.interaction_type,
-        subject: IMPORT_SUBJECT,
-        conversation_summary:
-          record.interaction.conversation_summary,
-        customer_feedback: null,
-        objections: null,
-        kiprod_commitments: null,
-        institution_commitments: null,
-        outcome: record.interaction.outcome,
-        sentiment: record.interaction.sentiment,
-        next_action: record.interaction.next_action,
-        follow_up_at: record.interaction.follow_up_at,
-        occurred_at:
-          record.interaction.occurred_at ||
-          new Date().toISOString(),
-        recorded_by: user.id,
-      },
-    ];
-  });
 
   let interactionsInserted = 0;
 
-  for (const interactionChunk of chunk(interactionsToInsert, 100)) {
-    const { error } = await supabase
-      .from("interactions")
-      .insert(interactionChunk);
+  for (
+    const interactionChunk of chunk(
+      interactionsToInsert,
+      100
+    )
+  ) {
+    const { error } =
+      await supabase
+        .from("interactions")
+        .insert(interactionChunk);
 
     if (error) {
       redirect(
@@ -287,15 +450,22 @@ export async function importSaccoMasterData() {
       );
     }
 
-    interactionsInserted += interactionChunk.length;
+    interactionsInserted +=
+      interactionChunk.length;
   }
 
   revalidatePath("/");
+  revalidatePath("/management");
   revalidatePath("/institutions");
   revalidatePath("/contacts");
+  revalidatePath("/my-workspace");
   revalidatePath("/admin");
-  revalidatePath("/admin/institutions");
-  revalidatePath("/admin/sacco-import");
+  revalidatePath(
+    "/admin/institutions"
+  );
+  revalidatePath(
+    "/admin/sacco-import"
+  );
 
   redirect(
     `/admin/sacco-import?success=${encodeURIComponent(

@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
 import {
   useEffect,
   useMemo,
@@ -10,6 +13,11 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  formatRoleLabel,
+  getAccessLevel,
+  type AccessLevel,
+} from "@/lib/roles";
 import GlobalSearch from "./GlobalSearch";
 
 type AppFrameProps = {
@@ -17,122 +25,274 @@ type AppFrameProps = {
 };
 
 type Identity = {
+  userId: string;
   name: string;
   email: string;
   role: string;
   rawRole: string;
+  accessLevel: AccessLevel;
 };
 
-const navigation = [
-  {
-    label: "Dashboard",
-    href: "/",
-    short: "DB",
-  },
-  {
-    label: "Institutions",
-    href: "/institutions",
-    short: "IN",
-  },
-  {
-    label: "Contacts",
-    href: "/contacts",
-    short: "CO",
-  },
-  {
-    label: "Opportunities",
-    href: "/opportunities",
-    short: "OP",
-  },
-  {
-    label: "Tasks",
-    href: "/tasks",
-    short: "TA",
-  },
-  {
-    label: "Daily & Weekly Reports",
-    href: "/reports",
-    short: "RE",
-  },
-  {
-    label: "KIPROD Academy",
-    href: "/academy",
-    short: "AC",
-  },
-];
+type NavigationItem = {
+  label: string;
+  href: string;
+  short: string;
+  exact?: boolean;
+};
 
-function formatLabel(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) =>
-      letter.toUpperCase()
-    );
-}
+const teamMemberNavigation: NavigationItem[] =
+  [
+    {
+      label: "My Workspace",
+      href: "/my-workspace",
+      short: "MW",
+      exact: true,
+    },
+    {
+      label: "My Institutions",
+      href: "/my-institutions",
+      short: "IN",
+    },
+    {
+      label: "My Contacts",
+      href: "/my-contacts",
+      short: "CO",
+    },
+    {
+      label: "My Opportunities",
+      href: "/my-opportunities",
+      short: "OP",
+    },
+    {
+      label: "My Tasks",
+      href: "/my-tasks",
+      short: "TA",
+    },
+    {
+      label: "My Reports",
+      href: "/my-reports",
+      short: "RE",
+    },
+    {
+      label: "My Academy",
+      href: "/my-academy",
+      short: "AC",
+    },
+  ];
 
-function getPageTitle(pathname: string) {
+const managementNavigation: NavigationItem[] =
+  [
+    {
+      label: "Management Dashboard",
+      href: "/management",
+      short: "MD",
+      exact: true,
+    },
+    {
+      label: "Management Centre",
+      href: "/management/centre",
+      short: "MC",
+    },
+    {
+      label: "Institutions",
+      href: "/institutions",
+      short: "IN",
+    },
+    {
+      label: "Contacts",
+      href: "/contacts",
+      short: "CO",
+    },
+    {
+      label: "Opportunities",
+      href: "/opportunities",
+      short: "OP",
+    },
+    {
+      label: "Tasks",
+      href: "/tasks",
+      short: "TA",
+    },
+    {
+      label: "Team Reports",
+      href: "/reports",
+      short: "RE",
+    },
+    {
+      label: "KIPROD Academy",
+      href: "/academy",
+      short: "AC",
+    },
+  ];
+
+function getPageTitle(
+  pathname: string
+) {
   if (
-    pathname.startsWith("/institutions/import")
+    pathname.startsWith(
+      "/my-institutions/"
+    )
+  ) {
+    return "Assigned Institution";
+  }
+
+  if (
+    pathname.startsWith(
+      "/my-institutions"
+    )
+  ) {
+    return "My Institutions";
+  }
+
+  if (
+    pathname.startsWith("/my-contacts")
+  ) {
+    return "My Contacts";
+  }
+
+  if (
+    pathname.startsWith(
+      "/my-opportunities"
+    )
+  ) {
+    return "My Opportunities";
+  }
+
+  if (
+    pathname.startsWith("/my-tasks")
+  ) {
+    return "My Tasks";
+  }
+
+  if (
+    pathname.startsWith("/my-reports")
+  ) {
+    return "My Reports";
+  }
+
+  if (
+    pathname.startsWith("/my-academy")
+  ) {
+    return "My Academy";
+  }
+
+  if (
+    pathname.startsWith(
+      "/my-workspace"
+    )
+  ) {
+    return "My Workspace";
+  }
+
+  if (
+    pathname.startsWith(
+      "/management/centre"
+    )
+  ) {
+    return "Management Centre";
+  }
+
+  if (
+    pathname.startsWith("/management")
+  ) {
+    return "Management Dashboard";
+  }
+
+  if (
+    pathname.startsWith(
+      "/institutions/import"
+    )
   ) {
     return "Import Institutions";
   }
 
-  if (pathname.startsWith("/institutions/")) {
+  if (
+    pathname.startsWith("/institutions/")
+  ) {
     return "Institution Profile";
   }
 
-  if (pathname.startsWith("/institutions")) {
+  if (
+    pathname.startsWith("/institutions")
+  ) {
     return "Institutions";
   }
 
-  if (pathname.startsWith("/contacts")) {
+  if (
+    pathname.startsWith("/contacts")
+  ) {
     return "Contacts";
   }
 
-  if (pathname.startsWith("/opportunities")) {
+  if (
+    pathname.startsWith("/opportunities")
+  ) {
     return "Opportunities";
   }
 
-  if (pathname.startsWith("/tasks")) {
+  if (
+    pathname.startsWith("/tasks")
+  ) {
     return "Tasks";
   }
 
-  if (pathname.startsWith("/reports")) {
-    return "Daily & Weekly Reports";
+  if (
+    pathname.startsWith("/reports")
+  ) {
+    return "Team Reports";
   }
 
-  if (pathname.startsWith("/academy")) {
+  if (
+    pathname.startsWith("/academy")
+  ) {
     return "KIPROD Academy";
   }
 
-  if (pathname.startsWith("/change-password")) {
+  if (
+    pathname.startsWith(
+      "/change-password"
+    )
+  ) {
     return "Change Password";
   }
 
-  if (pathname.startsWith("/profile")) {
+  if (
+    pathname.startsWith("/profile")
+  ) {
     return "My Profile";
   }
 
   if (
-    pathname.startsWith("/admin/sacco-import")
+    pathname.startsWith(
+      "/admin/sacco-import"
+    )
   ) {
     return "SACCO Master Import";
   }
 
   if (
-    pathname.startsWith("/admin/institutions")
+    pathname.startsWith(
+      "/admin/institutions"
+    )
   ) {
     return "Institution Administration";
   }
 
-  if (pathname.startsWith("/admin/contacts")) {
+  if (
+    pathname.startsWith(
+      "/admin/contacts"
+    )
+  ) {
     return "Contact Administration";
   }
 
-  if (pathname.startsWith("/admin")) {
+  if (
+    pathname.startsWith("/admin")
+  ) {
     return "Super Admin Centre";
   }
 
-  return "Dashboard";
+  return "KIPROD CRM";
 }
 
 function initials(name: string) {
@@ -140,21 +300,44 @@ function initials(name: string) {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
+    .map((part) =>
+      part[0]?.toUpperCase()
+    )
     .join("");
 
   return letters || "KR";
 }
 
-function NavigationLinks({
+function isNavigationActive({
   pathname,
-  onNavigate,
-  showAdmin = false,
+  item,
 }: {
   pathname: string;
-  onNavigate?: () => void;
-  showAdmin?: boolean;
+  item: NavigationItem;
 }) {
+  if (item.exact) {
+    return pathname === item.href;
+  }
+
+  return pathname.startsWith(
+    item.href
+  );
+}
+
+function NavigationLinks({
+  pathname,
+  accessLevel,
+  onNavigate,
+}: {
+  pathname: string;
+  accessLevel: AccessLevel;
+  onNavigate?: () => void;
+}) {
+  const navigation =
+    accessLevel === "team_member"
+      ? teamMemberNavigation
+      : managementNavigation;
+
   return (
     <nav
       className="space-y-1.5 px-4 py-5"
@@ -162,9 +345,10 @@ function NavigationLinks({
     >
       {navigation.map((item) => {
         const active =
-          item.href === "/"
-            ? pathname === "/"
-            : pathname.startsWith(item.href);
+          isNavigationActive({
+            pathname,
+            item,
+          });
 
         return (
           <Link
@@ -172,7 +356,9 @@ function NavigationLinks({
             href={item.href}
             onClick={onNavigate}
             aria-current={
-              active ? "page" : undefined
+              active
+                ? "page"
+                : undefined
             }
             className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold leading-5 transition ${
               active
@@ -197,24 +383,31 @@ function NavigationLinks({
         );
       })}
 
-      {showAdmin && (
+      {accessLevel ===
+        "super_admin" && (
         <Link
           href="/admin"
           onClick={onNavigate}
           aria-current={
-            pathname.startsWith("/admin")
+            pathname.startsWith(
+              "/admin"
+            )
               ? "page"
               : undefined
           }
           className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold leading-5 transition ${
-            pathname.startsWith("/admin")
+            pathname.startsWith(
+              "/admin"
+            )
               ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/15"
               : "text-slate-300 hover:bg-slate-900 hover:text-white"
           }`}
         >
           <span
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-black tracking-wider ${
-              pathname.startsWith("/admin")
+              pathname.startsWith(
+                "/admin"
+              )
                 ? "bg-slate-950 text-amber-400"
                 : "bg-slate-900 text-slate-400"
             }`}
@@ -261,20 +454,17 @@ export default function AppFrame({
 
   const [identity, setIdentity] =
     useState<Identity>({
+      userId: "",
       name: "KIPROD Team",
       email: "",
-      role: "Internal User",
+      role: "Team Member",
       rawRole: "",
+      accessLevel: "team_member",
     });
 
   const isPublicRoute =
     pathname === "/login" ||
     pathname.startsWith("/auth/");
-
-  const isAdmin = [
-    "super_admin",
-    "management",
-  ].includes(identity.rawRole);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -324,7 +514,8 @@ export default function AppFrame({
       }
     }
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
     document.addEventListener(
       "keydown",
@@ -356,7 +547,8 @@ export default function AppFrame({
       const {
         data: { user },
         error: authError,
-      } = await supabase.auth.getUser();
+      } =
+        await supabase.auth.getUser();
 
       if (!active) {
         return;
@@ -368,32 +560,56 @@ export default function AppFrame({
         return;
       }
 
-      const { data: profile } =
-        await supabase
-          .from("profiles")
-          .select("full_name, role")
-          .eq("id", user.id)
-          .maybeSingle();
+      const {
+        data: profile,
+        error: profileError,
+      } = await supabase
+        .from("profiles")
+        .select(
+          "full_name, role, is_active"
+        )
+        .eq("id", user.id)
+        .maybeSingle();
 
       if (!active) {
         return;
       }
 
-      const rawRole = profile?.role || "";
+      if (
+        profileError ||
+        !profile ||
+        profile.is_active === false
+      ) {
+        await supabase.auth.signOut();
+
+        router.replace(
+          "/login?error=Your CRM account is inactive or unavailable"
+        );
+
+        router.refresh();
+        return;
+      }
+
+      const rawRole =
+        profile.role || "";
 
       setIdentity({
+        userId: user.id,
+
         name:
-          profile?.full_name?.trim() ||
+          profile.full_name?.trim() ||
           user.email?.split("@")[0] ||
           "KIPROD User",
 
         email: user.email || "",
 
-        role: rawRole
-          ? formatLabel(rawRole)
-          : "Internal User",
+        role:
+          formatRoleLabel(rawRole),
 
         rawRole,
+
+        accessLevel:
+          getAccessLevel(rawRole),
       });
 
       setCheckingSession(false);
@@ -403,18 +619,57 @@ export default function AppFrame({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!session && active) {
-          router.replace("/login");
-          router.refresh();
+    } =
+      supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          if (!session && active) {
+            router.replace("/login");
+            router.refresh();
+          }
         }
-      }
-    );
+      );
 
     return () => {
       active = false;
       subscription.unsubscribe();
+    };
+  }, [
+    isPublicRoute,
+    router,
+    supabase,
+  ]);
+
+  useEffect(() => {
+    if (isPublicRoute) {
+      return;
+    }
+
+    async function verifySession() {
+      const {
+        data: { user },
+      } =
+        await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace("/login");
+        router.refresh();
+      }
+    }
+
+    function handlePageShow() {
+      void verifySession();
+    }
+
+    window.addEventListener(
+      "pageshow",
+      handlePageShow
+    );
+
+    return () => {
+      window.removeEventListener(
+        "pageshow",
+        handlePageShow
+      );
     };
   }, [
     isPublicRoute,
@@ -471,6 +726,15 @@ export default function AppFrame({
   const pageTitle =
     getPageTitle(pathname);
 
+  const workspaceLabel =
+    identity.accessLevel ===
+    "team_member"
+      ? "Team Workspace"
+      : identity.accessLevel ===
+          "super_admin"
+        ? "Management & Administration"
+        : "Management Workspace";
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-slate-950 text-white lg:flex">
@@ -484,14 +748,29 @@ export default function AppFrame({
           </h1>
 
           <p className="mt-2 text-xs leading-5 text-slate-400">
-            Partnerships and Acquisition CRM
+            {workspaceLabel}
           </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <NavigationLinks
             pathname={pathname}
+            accessLevel={
+              identity.accessLevel
+            }
           />
+        </div>
+
+        <div className="border-t border-slate-800 px-4 py-4">
+          <div className="rounded-xl bg-slate-900 px-4 py-3">
+            <p className="truncate text-sm font-black text-white">
+              {identity.name}
+            </p>
+
+            <p className="mt-1 truncate text-xs text-slate-400">
+              {identity.role}
+            </p>
+          </div>
         </div>
       </aside>
 
@@ -521,6 +800,10 @@ export default function AppFrame({
                 <p className="mt-2 break-words font-black leading-5">
                   Institutional Growth Hub
                 </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  {workspaceLabel}
+                </p>
               </div>
 
               <button
@@ -538,10 +821,12 @@ export default function AppFrame({
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <NavigationLinks
                 pathname={pathname}
+                accessLevel={
+                  identity.accessLevel
+                }
                 onNavigate={() =>
                   setMobileOpen(false)
                 }
-                showAdmin={isAdmin}
               />
             </div>
 
@@ -599,7 +884,10 @@ export default function AppFrame({
             </div>
 
             <GlobalSearch
-              isAdmin={isAdmin}
+              accessLevel={
+                identity.accessLevel
+              }
+              userId={identity.userId}
             />
 
             <div
@@ -610,7 +898,8 @@ export default function AppFrame({
                 type="button"
                 onClick={() =>
                   setProfileOpen(
-                    (current) => !current
+                    (current) =>
+                      !current
                   )
                 }
                 aria-label="Open profile menu"
@@ -658,7 +947,9 @@ export default function AppFrame({
                     <Link
                       href="/profile"
                       onClick={() =>
-                        setProfileOpen(false)
+                        setProfileOpen(
+                          false
+                        )
                       }
                       className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
                     >
@@ -668,20 +959,40 @@ export default function AppFrame({
                     <Link
                       href="/change-password"
                       onClick={() =>
-                        setProfileOpen(false)
+                        setProfileOpen(
+                          false
+                        )
                       }
                       className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
                     >
                       Change Password
                     </Link>
 
-                    {isAdmin && (
+                    {identity.accessLevel !==
+                      "team_member" && (
+                      <Link
+                        href="/management"
+                        onClick={() =>
+                          setProfileOpen(
+                            false
+                          )
+                        }
+                        className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+                      >
+                        Management Workspace
+                      </Link>
+                    )}
+
+                    {identity.accessLevel ===
+                      "super_admin" && (
                       <Link
                         href="/admin"
                         onClick={() =>
-                          setProfileOpen(false)
+                          setProfileOpen(
+                            false
+                          )
                         }
-                        className="block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-amber-50 hover:text-amber-800"
+                        className="block rounded-xl px-4 py-3 text-sm font-bold text-amber-800 transition hover:bg-amber-50"
                       >
                         Super Admin Centre
                       </Link>
@@ -691,7 +1002,9 @@ export default function AppFrame({
                   <div className="border-t border-slate-200 p-2">
                     <button
                       type="button"
-                      onClick={handleSignOut}
+                      onClick={
+                        handleSignOut
+                      }
                       disabled={signingOut}
                       className="w-full rounded-xl px-4 py-3 text-left text-sm font-black text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
