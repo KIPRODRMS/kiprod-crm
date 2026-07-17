@@ -46,16 +46,20 @@ export async function bulkAssignInstitutions(
       )
     );
 
-  const assignedTo = readField(
+  const assignmentMode = readField(
+    formData,
+    "assignment_mode"
+  );
+
+  const selectedAssignee = readField(
     formData,
     "assigned_to"
   );
 
-  const requestedReturnUrl =
-    readField(
-      formData,
-      "return_url"
-    );
+  const requestedReturnUrl = readField(
+    formData,
+    "return_url"
+  );
 
   const returnUrl =
     requestedReturnUrl.startsWith(
@@ -83,6 +87,37 @@ export async function bulkAssignInstitutions(
       )
     );
   }
+
+  if (
+    assignmentMode !== "assign" &&
+    assignmentMode !== "unassign"
+  ) {
+    redirect(
+      withMessage(
+        returnUrl,
+        "error",
+        "Choose whether to assign or unassign the selected institutions"
+      )
+    );
+  }
+
+  if (
+    assignmentMode === "assign" &&
+    !selectedAssignee
+  ) {
+    redirect(
+      withMessage(
+        returnUrl,
+        "error",
+        "Choose a Team Member in the Assign To field"
+      )
+    );
+  }
+
+  const assignedTo =
+    assignmentMode === "unassign"
+      ? ""
+      : selectedAssignee;
 
   if (assignedTo) {
     const {

@@ -41,6 +41,18 @@ function profileLabel(
   );
 }
 
+function roleLabel(role: string | null) {
+  if (role === "super_admin") {
+    return "Super Admin";
+  }
+
+  if (role === "management") {
+    return "Management";
+  }
+
+  return "Team Member";
+}
+
 function formatLabel(
   value: string | null
 ) {
@@ -64,6 +76,8 @@ export default function BulkInstitutionAssignment({
     useState<Set<string>>(
       new Set()
     );
+  const [assignee, setAssignee] =
+    useState("");
 
   const profileMap = useMemo(
     () =>
@@ -82,9 +96,7 @@ export default function BulkInstitutionAssignment({
     setSelected((current) => {
       const next = new Set(current);
 
-      if (
-        next.has(institutionId)
-      ) {
+      if (next.has(institutionId)) {
         next.delete(institutionId);
       } else {
         next.add(institutionId);
@@ -168,36 +180,72 @@ export default function BulkInstitutionAssignment({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-          <select
-            name="assigned_to"
-            defaultValue=""
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm"
-          >
-            <option value="">
-              Unassign Selected
-            </option>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
+          <div>
+            <label
+              htmlFor="institution-assignee"
+              className="mb-2 block text-[11px] font-black uppercase tracking-wide text-slate-600"
+            >
+              Assign To
+            </label>
 
-            {profiles.map(
-              (profile) => (
-                <option
-                  key={profile.id}
-                  value={profile.id}
-                >
-                  {profileLabel(profile)}
-                </option>
-              )
+            <select
+              id="institution-assignee"
+              name="assigned_to"
+              value={assignee}
+              onChange={(event) =>
+                setAssignee(
+                  event.target.value
+                )
+              }
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-950"
+            >
+              <option value="">
+                Choose a Team Member
+              </option>
+
+              {profiles.map(
+                (profile) => (
+                  <option
+                    key={profile.id}
+                    value={profile.id}
+                  >
+                    {profileLabel(profile)} â€”{" "}
+                    {roleLabel(profile.role)}
+                  </option>
+                )
+              )}
+            </select>
+
+            {profiles.length === 0 && (
+              <p className="mt-2 text-xs font-bold text-red-700">
+                No active CRM accounts are
+                available for assignment.
+              </p>
             )}
-          </select>
+          </div>
 
           <button
             type="submit"
+            name="assignment_mode"
+            value="assign"
             disabled={
-              selected.size === 0
+              selected.size === 0 ||
+              !assignee
             }
             className="rounded-xl bg-amber-500 px-6 py-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Assign Selected
+          </button>
+
+          <button
+            type="submit"
+            name="assignment_mode"
+            value="unassign"
+            disabled={selected.size === 0}
+            className="rounded-xl border border-red-200 bg-white px-6 py-3 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Unassign Selected
           </button>
         </div>
       </div>
