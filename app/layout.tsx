@@ -1,6 +1,10 @@
-﻿import type { Metadata, Viewport } from "next";
+import type {
+  Metadata,
+  Viewport,
+} from "next";
 import { Archivo } from "next/font/google";
 import AppFrame from "./components/AppFrame";
+import PwaRegistration from "./components/PwaRegistration";
 import "./globals.css";
 
 const archivo = Archivo({
@@ -10,7 +14,9 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://kiprod-crm.vercel.app"),
+  metadataBase: new URL(
+    "https://kiprod-crm.vercel.app"
+  ),
 
   title: {
     default: "KIPROD CRM",
@@ -27,11 +33,37 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
+        url: "/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: "/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
         url: "/icon.svg",
         type: "image/svg+xml",
       },
     ],
-    shortcut: "/icon.svg",
+
+    shortcut: "/icon-192.png",
+
+    apple: [
+      {
+        url: "/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
+
+  appleWebApp: {
+    capable: true,
+    title: "KIPROD CRM",
+    statusBarStyle:
+      "black-translucent",
   },
 
   openGraph: {
@@ -52,6 +84,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: "#071426",
   colorScheme: "light",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -65,6 +98,7 @@ export default function RootLayout({
       className={`${archivo.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        <PwaRegistration />
         <AppFrame>{children}</AppFrame>
       </body>
     </html>

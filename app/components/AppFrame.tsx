@@ -19,6 +19,7 @@ import {
   type AccessLevel,
 } from "@/lib/roles";
 import GlobalSearch from "./GlobalSearch";
+import InstallAppButton from "./InstallAppButton";
 
 type AppFrameProps = {
   children: ReactNode;
@@ -464,6 +465,7 @@ export default function AppFrame({
 
   const isPublicRoute =
     pathname === "/login" ||
+    pathname === "/install" ||
     pathname.startsWith("/auth/");
 
   useEffect(() => {
@@ -967,6 +969,8 @@ export default function AppFrame({
                     >
                       Change Password
                     </Link>
+
+                    <InstallAppButton variant="menu" />
 
                     {identity.accessLevel !==
                       "team_member" && (
