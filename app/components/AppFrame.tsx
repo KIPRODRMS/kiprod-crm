@@ -34,6 +34,12 @@ type Identity = {
   accessLevel: AccessLevel;
 };
 
+type SessionProblem =
+  | "offline"
+  | "timeout"
+  | "connection"
+  | null;
+
 type NavigationItem = {
   label: string;
   href: string;
@@ -453,6 +459,19 @@ export default function AppFrame({
     setCheckingSession,
   ] = useState(true);
 
+  const [
+    sessionProblem,
+    setSessionProblem,
+  ] = useState<SessionProblem>(null);
+
+  const [
+    sessionAttempt,
+    setSessionAttempt,
+  ] = useState(0);
+
+  const [isOnline, setIsOnline] =
+    useState(true);
+
   const [identity, setIdentity] =
     useState<Identity>({
       userId: "",
@@ -536,85 +555,208 @@ export default function AppFrame({
   }, [mobileOpen]);
 
   useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+      setSessionProblem(null);
+      setSessionAttempt(
+        (current) => current + 1
+      );
+    }
+
+    function handleOffline() {
+      setIsOnline(false);
+      setCheckingSession(false);
+      setSessionProblem("offline");
+    }
+
+    setIsOnline(navigator.onLine);
+
+    window.addEventListener(
+      "online",
+      handleOnline
+    );
+
+    window.addEventListener(
+      "offline",
+      handleOffline
+    );
+
+    return () => {
+      window.removeEventListener(
+        "online",
+        handleOnline
+      );
+
+      window.removeEventListener(
+        "offline",
+        handleOffline
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     if (isPublicRoute) {
       setCheckingSession(false);
+      setSessionProblem(null);
       return;
     }
 
     let active = true;
+    let timedOut = false;
+
+    setCheckingSession(true);
+    setSessionProblem(null);
+
+    const timeoutId =
+      window.setTimeout(() => {
+        if (!active) {
+          return;
+        }
+
+        timedOut = true;
+        setCheckingSession(false);
+        setSessionProblem(
+          navigator.onLine
+            ? "timeout"
+            : "offline"
+        );
+      }, 12000);
 
     async function loadIdentity() {
-      setCheckingSession(true);
+      try {
+        if (!navigator.onLine) {
+          window.clearTimeout(
+            timeoutId
+          );
 
-      const {
-        data: { user },
-        error: authError,
-      } =
-        await supabase.auth.getUser();
+          if (!active || timedOut) {
+            return;
+          }
 
-      if (!active) {
-        return;
-      }
+          setIsOnline(false);
+          setCheckingSession(false);
+          setSessionProblem("offline");
+          return;
+        }
 
-      if (authError || !user) {
-        router.replace("/login");
-        router.refresh();
-        return;
-      }
+        const {
+          data: { user },
+          error: authError,
+        } =
+          await supabase.auth.getUser();
 
-      const {
-        data: profile,
-        error: profileError,
-      } = await supabase
-        .from("profiles")
-        .select(
-          "full_name, role, is_active"
-        )
-        .eq("id", user.id)
-        .maybeSingle();
+        if (!active || timedOut) {
+          return;
+        }
 
-      if (!active) {
-        return;
-      }
+        if (authError) {
+          throw authError;
+        }
 
-      if (
-        profileError ||
-        !profile ||
-        profile.is_active === false
-      ) {
-        await supabase.auth.signOut();
+        if (!user) {
+          window.clearTimeout(
+            timeoutId
+          );
 
-        router.replace(
-          "/login?error=Your CRM account is inactive or unavailable"
+          setCheckingSession(false);
+          router.replace("/login");
+          router.refresh();
+          return;
+        }
+
+        const {
+          data: profile,
+          error: profileError,
+        } = await supabase
+          .from("profiles")
+          .select(
+            "full_name, role, is_active"
+          )
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!active || timedOut) {
+          return;
+        }
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        if (
+          !profile ||
+          profile.is_active === false
+        ) {
+          window.clearTimeout(
+            timeoutId
+          );
+
+          await supabase.auth.signOut();
+
+          if (!active) {
+            return;
+          }
+
+          setCheckingSession(false);
+
+          router.replace(
+            "/login?error=Your CRM account is inactive or unavailable"
+          );
+
+          router.refresh();
+          return;
+        }
+
+        const rawRole =
+          profile.role || "";
+
+        setIdentity({
+          userId: user.id,
+
+          name:
+            profile.full_name?.trim() ||
+            user.email?.split("@")[0] ||
+            "KIPROD User",
+
+          email: user.email || "",
+
+          role:
+            formatRoleLabel(rawRole),
+
+          rawRole,
+
+          accessLevel:
+            getAccessLevel(rawRole),
+        });
+
+        window.clearTimeout(
+          timeoutId
         );
 
-        router.refresh();
-        return;
+        setIsOnline(true);
+        setSessionProblem(null);
+        setCheckingSession(false);
+      } catch (error) {
+        window.clearTimeout(
+          timeoutId
+        );
+
+        if (!active || timedOut) {
+          return;
+        }
+
+        console.error(
+          "KIPROD CRM session check failed:",
+          error
+        );
+
+        setCheckingSession(false);
+        setSessionProblem(
+          navigator.onLine
+            ? "connection"
+            : "offline"
+        );
       }
-
-      const rawRole =
-        profile.role || "";
-
-      setIdentity({
-        userId: user.id,
-
-        name:
-          profile.full_name?.trim() ||
-          user.email?.split("@")[0] ||
-          "KIPROD User",
-
-        email: user.email || "",
-
-        role:
-          formatRoleLabel(rawRole),
-
-        rawRole,
-
-        accessLevel:
-          getAccessLevel(rawRole),
-      });
-
-      setCheckingSession(false);
     }
 
     void loadIdentity();
@@ -633,11 +775,17 @@ export default function AppFrame({
 
     return () => {
       active = false;
+
+      window.clearTimeout(
+        timeoutId
+      );
+
       subscription.unsubscribe();
     };
   }, [
     isPublicRoute,
     router,
+    sessionAttempt,
     supabase,
   ]);
 
@@ -679,6 +827,14 @@ export default function AppFrame({
     supabase,
   ]);
 
+  function handleSessionRetry() {
+    setSessionProblem(null);
+    setCheckingSession(true);
+    setSessionAttempt(
+      (current) => current + 1
+    );
+  }
+
   async function handleSignOut() {
     if (signingOut) {
       return;
@@ -709,6 +865,72 @@ export default function AppFrame({
     return children;
   }
 
+  if (sessionProblem) {
+    const offline =
+      sessionProblem === "offline" ||
+      !isOnline;
+
+    const title = offline
+      ? "You are offline"
+      : "Connection problem";
+
+    const message = offline
+      ? "Reconnect to Wi-Fi or mobile data, then retry."
+      : sessionProblem === "timeout"
+        ? "The CRM took too long to confirm your session. Your account has not been changed."
+        : "The CRM could not confirm your session. Check your connection and try again.";
+
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-10 text-white">
+        <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="border-b border-slate-800 px-6 py-6">
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-amber-500">
+              KIPROD CRM
+            </p>
+
+            <h1 className="mt-3 text-2xl font-black">
+              {title}
+            </h1>
+
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              {message}
+            </p>
+          </div>
+
+          <div className="grid gap-3 p-6">
+            <button
+              type="button"
+              onClick={handleSessionRetry}
+              className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-400"
+            >
+              Retry Connection
+            </button>
+
+            <a
+              href="/login"
+              className="rounded-xl border border-slate-700 px-5 py-3 text-center text-sm font-black text-white transition hover:border-amber-500 hover:bg-slate-800"
+            >
+              Open Login
+            </a>
+
+            <a
+              href="https://kiprod-crm.vercel.app/login"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-slate-700 px-5 py-3 text-center text-sm font-black text-slate-300 transition hover:border-amber-500 hover:bg-slate-800 hover:text-white"
+            >
+              Open in Browser
+            </a>
+
+            <p className="mt-2 break-all text-center text-[11px] leading-5 text-slate-500">
+              Official CRM: https://kiprod-crm.vercel.app
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (checkingSession) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
@@ -719,6 +941,10 @@ export default function AppFrame({
 
           <p className="mt-3 text-sm font-bold text-slate-300">
             Loading workspace...
+          </p>
+
+          <p className="mt-2 text-xs text-slate-500">
+            Checking your secure CRM session
           </p>
         </div>
       </div>
