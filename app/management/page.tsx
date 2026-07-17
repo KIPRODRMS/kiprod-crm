@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireManagement } from "@/lib/auth";
+import TeamAccountability from "./TeamAccountability";
 
 function getNairobiDate() {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -429,6 +430,8 @@ export default async function ManagementPage() {
         </div>
       )}
 
+      <TeamAccountability />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
@@ -604,7 +607,7 @@ export default async function ManagementPage() {
                 href="/opportunities"
                 className="text-sm font-black text-amber-700 hover:text-amber-600"
               >
-                View all →
+                View all â†’
               </Link>
             </div>
 
@@ -693,7 +696,7 @@ export default async function ManagementPage() {
                 href="/institutions"
                 className="text-sm font-black text-amber-700 hover:text-amber-600"
               >
-                View all →
+                View all â†’
               </Link>
             </div>
 

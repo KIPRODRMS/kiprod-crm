@@ -234,7 +234,7 @@ export default function GlobalSearch({
             }
             className="block border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-800 hover:bg-slate-100"
           >
-            View all results for â€œ{trimmedQuery}â€
+            View all results for "{trimmedQuery}"
           </Link>
         </div>
       )}
