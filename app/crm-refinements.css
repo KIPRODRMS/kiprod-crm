@@ -1,0 +1,90 @@
+/*
+  Mobile header, contact-card and encoding refinements.
+  Import this file immediately after globals.css in app/layout.tsx.
+*/
+
+@media (max-width: 767px) {
+  header:has(.crm-global-search) > div {
+    flex-wrap: wrap;
+  }
+
+  .crm-global-search {
+    order: 3;
+    flex: 1 0 100% !important;
+    width: 100%;
+    max-width: none !important;
+    margin-left: 0 !important;
+  }
+
+  .crm-global-search form {
+    width: 100%;
+  }
+
+  .crm-global-search input {
+    min-width: 0;
+  }
+
+  .crm-global-search button[type="submit"] {
+    min-width: 82px;
+  }
+
+  header:has(.crm-global-search) h2 {
+    max-width: 11rem !important;
+  }
+}
+
+@media (max-width: 359px) {
+  header:has(.crm-global-search) h2 {
+    max-width: 8.5rem !important;
+  }
+}
+
+.contact-card-enter {
+  opacity: 0;
+  animation: contact-card-enter 360ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes contact-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-card-enter {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* Replace the two corrupted management-dashboard arrow labels. */
+.crm-page-content a[href="/opportunities"].text-sm.font-black,
+.crm-page-content a[href="/institutions"].text-sm.font-black {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0 !important;
+}
+
+.crm-page-content a[href="/opportunities"].text-sm.font-black::before,
+.crm-page-content a[href="/institutions"].text-sm.font-black::before {
+  content: "View all";
+  font-size: 0.875rem;
+}
+
+.crm-page-content a[href="/opportunities"].text-sm.font-black::after,
+.crm-page-content a[href="/institutions"].text-sm.font-black::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+}

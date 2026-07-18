@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Metadata,
   Viewport,
 } from "next";
@@ -6,6 +6,7 @@ import { Archivo } from "next/font/google";
 import AppFrame from "./components/AppFrame";
 import PwaRegistration from "./components/PwaRegistration";
 import "./globals.css";
+import "./crm-refinements.css";
 
 const archivo = Archivo({
   variable: "--font-archivo",
