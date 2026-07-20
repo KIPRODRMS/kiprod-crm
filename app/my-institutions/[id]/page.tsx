@@ -2,6 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireTeamMember } from "@/lib/auth";
 import { recordMyInteraction } from "../actions";
+import {
+  CONTROLLED_STAGE_ONE_DOCUMENTS,
+  ENGAGEMENT_STAGES,
+  normaliseEngagementStage,
+} from "@/lib/engagement";
 
 type MyInstitutionDetailPageProps = {
   params: Promise<{
@@ -173,6 +178,7 @@ export default async function MyInstitutionDetailPage({
           conversation_summary,
           customer_feedback,
           objections,
+          kiprod_commitments,
           outcome,
           sentiment,
           next_action,
@@ -503,6 +509,17 @@ export default async function MyInstitutionDetailPage({
                         }
                       </p>
 
+                      {interaction.kiprod_commitments && (
+                        <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-blue-700">
+                            KIPROD Materials / Commitments
+                          </p>
+                          <p className="mt-1 text-sm font-bold leading-6 text-blue-950">
+                            {interaction.kiprod_commitments}
+                          </p>
+                        </div>
+                      )}
+
                       {interaction.next_action && (
                         <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3">
                           <p className="text-[10px] font-black uppercase tracking-wide text-amber-700">
@@ -547,6 +564,33 @@ export default async function MyInstitutionDetailPage({
                 name="institution_id"
                 value={institution.id}
               />
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-800">
+                  Required Engagement Sequence
+                </p>
+                <p className="mt-2 text-xs font-bold leading-5 text-amber-950">
+                  Target identified → Contact verified → Intro contact made → Stage 1
+                  documents sent → Interest expressed → ILCA requested/approved → ILCA sent
+                </p>
+              </div>
+
+              <div>
+                <label className={labelClass}>Engagement Stage *</label>
+                <select
+                  name="engagement_stage"
+                  required
+                  defaultValue={normaliseEngagementStage(institution.outreach_status) || ""}
+                  className={fieldClass}
+                >
+                  <option value="">Select current stage</option>
+                  {ENGAGEMENT_STAGES.map((stage) => (
+                    <option key={stage.value} value={stage.value}>
+                      {stage.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label
@@ -643,6 +687,55 @@ export default async function MyInstitutionDetailPage({
                 />
               </div>
 
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
+                  Documents Sent During This Interaction
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Stage 1 is a controlled three-document pack. Training or masterclass
+                  information is only allowed when the institution requested training.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {CONTROLLED_STAGE_ONE_DOCUMENTS.map((document) => (
+                    <label
+                      key={document.field}
+                      className="flex items-start gap-3 rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        name={document.field}
+                        className="mt-0.5 h-4 w-4 accent-amber-500"
+                      />
+                      <span>{document.label}</span>
+                    </label>
+                  ))}
+                  <label className="flex items-start gap-3 rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      name="document_ilca_form"
+                      className="mt-0.5 h-4 w-4 accent-amber-500"
+                    />
+                    <span>ILCA form — only after ILCA request/approval</span>
+                  </label>
+                  <label className="flex items-start gap-3 rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      name="document_training_information"
+                      className="mt-0.5 h-4 w-4 accent-amber-500"
+                    />
+                    <span>Training/masterclass information</span>
+                  </label>
+                  <label className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-black text-red-800">
+                    <input
+                      type="checkbox"
+                      name="training_requested"
+                      className="mt-0.5 h-4 w-4 accent-red-600"
+                    />
+                    <span>The institution specifically requested training information</span>
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label
                   className={
@@ -714,13 +807,14 @@ export default async function MyInstitutionDetailPage({
                     labelClass
                   }
                 >
-                  Next Action
+                  Next Action *
                 </label>
 
                 <textarea
                   name="next_action"
+                  required
                   rows={3}
-                  placeholder="What should happen next?"
+                  placeholder="What exactly must happen next?"
                   className={`${fieldClass} resize-none`}
                 />
               </div>
@@ -731,12 +825,13 @@ export default async function MyInstitutionDetailPage({
                     labelClass
                   }
                 >
-                  Follow-up Date
+                  Follow-up Date *
                 </label>
 
                 <input
                   name="follow_up_at"
                   type="datetime-local"
+                  required
                   className={fieldClass}
                 />
               </div>

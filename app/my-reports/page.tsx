@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTeamMember } from "@/lib/auth";
+import { parseDailyActivitySummary } from "@/lib/engagement";
 import {
   submitMyDailyReport,
   submitMyWeeklyReport,
@@ -144,6 +145,64 @@ const inputClass =
 
 const labelClass =
   "mb-2 block text-[11px] font-black uppercase tracking-wide text-slate-600";
+
+function CountField({
+  name,
+  label,
+}: {
+  name: string;
+  label: string;
+}) {
+  return (
+    <div>
+      <label className={labelClass}>{label} *</label>
+      <input
+        name={name}
+        type="number"
+        min="0"
+        step="1"
+        required
+        defaultValue="0"
+        className={inputClass}
+      />
+    </div>
+  );
+}
+
+function DailyActivityBreakdown({ value }: { value: string | null }) {
+  const counts = parseDailyActivitySummary(value);
+
+  if (!counts) {
+    return (
+      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
+        This older report does not contain the required daily activity counts.
+      </div>
+    );
+  }
+
+  const metrics = [
+    ["Calls", counts.calls],
+    ["WhatsApp", counts.whatsapp],
+    ["Emails", counts.emails],
+    ["Meetings", counts.meetings],
+    ["Follow-ups", counts.followUps],
+    ["Stage 1 packs", counts.stageOnePacks],
+    ["ILCAs sent", counts.ilcasSent],
+  ];
+
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {metrics.map(([label, count]) => (
+        <div key={label} className="rounded-xl bg-slate-100 px-3 py-2">
+          <p className="text-[9px] font-black uppercase tracking-wide text-slate-500">
+            {label}
+          </p>
+          <p className="mt-1 text-lg font-black text-slate-950">{count}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default async function MyReportsPage({
   searchParams,
@@ -428,32 +487,46 @@ export default async function MyReportsPage({
               />
             </div>
 
-            <div>
-              <label
-                className={labelClass}
-              >
-                Institutions Contacted
-              </label>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-800">
+                Daily Activity Counts
+              </p>
+              <p className="mt-1 text-xs leading-5 text-blue-700">
+                Enter zero where there was no activity. A Stage 1 pack means the
+                Institutional Introduction, Ecosystem One-Pager and ILCA Invitation
+                Note were sent together.
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <CountField name="new_targets_count" label="New Targets Added" />
+                <CountField name="contacts_attempted_count" label="Contacts Attempted" />
+                <CountField name="calls_count" label="Calls Made" />
+                <CountField name="whatsapp_count" label="WhatsApp Messages" />
+                <CountField name="emails_count" label="Emails Sent" />
+                <CountField name="meetings_count" label="Visits / Meetings" />
+                <CountField name="follow_ups_count" label="Follow-ups Completed" />
+                <CountField name="stage_1_packs_count" label="Stage 1 Packs Sent" />
+                <CountField name="ilcas_sent_count" label="ILCAs Sent" />
+              </div>
+            </div>
 
+            <div>
+              <label className={labelClass}>Institutions Contacted and Outcome *</label>
               <textarea
                 name="institutions_contacted"
-                rows={3}
-                placeholder="List the institutions contacted today..."
+                required
+                rows={5}
+                placeholder="For each institution: who was contacted, what happened and what they said. Enter ‘None’ if no contact was made."
                 className={`${inputClass} resize-none`}
               />
             </div>
 
             <div>
-              <label
-                className={labelClass}
-              >
-                Activities Completed
-              </label>
-
+              <label className={labelClass}>End-of-Day Summary *</label>
               <textarea
-                name="activities_completed"
+                name="daily_summary"
+                required
                 rows={4}
-                placeholder="Calls, emails, meetings, proposals and follow-ups..."
+                placeholder="Summarise the day’s work and the actual result—not just the contact list."
                 className={`${inputClass} resize-none`}
               />
             </div>
@@ -462,13 +535,14 @@ export default async function MyReportsPage({
               <label
                 className={labelClass}
               >
-                New Leads Identified
+                New Leads Identified *
               </label>
 
               <textarea
                 name="new_leads_identified"
+                required
                 rows={3}
-                placeholder="New institutions or contacts identified..."
+                placeholder="List new targets or enter ‘None’."
                 className={`${inputClass} resize-none`}
               />
             </div>
@@ -489,16 +563,34 @@ export default async function MyReportsPage({
             </div>
 
             <div>
-              <label
-                className={labelClass}
-              >
-                Opportunities Progressed
-              </label>
-
+              <label className={labelClass}>What Was Sent *</label>
               <textarea
-                name="opportunities_progressed"
+                name="materials_sent"
+                required
                 rows={3}
-                placeholder="Which opportunities moved forward?"
+                placeholder="Name the exact controlled documents sent. Enter ‘None’ if nothing was sent. Do not list masterclass information unless training was requested."
+                className={`${inputClass} resize-none`}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Follow-up Completed *</label>
+              <textarea
+                name="follow_up_summary"
+                required
+                rows={3}
+                placeholder="State which institution was followed up, what happened and the next action date. Enter ‘None’ if no follow-up occurred."
+                className={`${inputClass} resize-none`}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Pipeline Movement *</label>
+              <textarea
+                name="pipeline_progress"
+                required
+                rows={3}
+                placeholder="State each institution’s old stage and new stage, or enter ‘None’."
                 className={`${inputClass} resize-none`}
               />
             </div>
@@ -507,13 +599,14 @@ export default async function MyReportsPage({
               <label
                 className={labelClass}
               >
-                Challenges
+                Issues or Challenges *
               </label>
 
               <textarea
                 name="challenges"
+                required
                 rows={3}
-                placeholder="What slowed down or blocked progress?"
+                placeholder="Record issues or enter ‘None’."
                 className={`${inputClass} resize-none`}
               />
             </div>
@@ -537,13 +630,14 @@ export default async function MyReportsPage({
               <label
                 className={labelClass}
               >
-                Tomorrow&apos;s Priorities
+                Tomorrow&apos;s Next Actions and Dates *
               </label>
 
               <textarea
                 name="tomorrow_priorities"
+                required
                 rows={3}
-                placeholder="What will be prioritised tomorrow?"
+                placeholder="Institution — next action — follow-up date. Every contacted institution must have a dated next action."
                 className={`${inputClass} resize-none`}
               />
             </div>
@@ -834,19 +928,7 @@ export default async function MyReportsPage({
                       </span>
                     </div>
 
-                    {report.activities_completed && (
-                      <div className="mt-4">
-                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                          Activities Completed
-                        </p>
-
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                          {
-                            report.activities_completed
-                          }
-                        </p>
-                      </div>
-                    )}
+                    <DailyActivityBreakdown value={report.activities_completed} />
 
                     {report.manager_feedback && (
                       <div className="mt-4 rounded-xl bg-amber-50 px-4 py-3">

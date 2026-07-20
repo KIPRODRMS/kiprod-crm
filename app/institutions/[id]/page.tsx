@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  CONTROLLED_STAGE_ONE_DOCUMENTS,
+  ENGAGEMENT_STAGES,
+  normaliseEngagementStage,
+} from "@/lib/engagement";
 import { recordInteraction } from "./actions";
 
 type InstitutionPageProps = {
@@ -79,6 +84,7 @@ export default async function InstitutionPage({
       phone,
       source,
       status,
+      outreach_status,
       next_action,
       next_follow_up_at,
       created_at
@@ -176,6 +182,14 @@ export default async function InstitutionPage({
 
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
                       {formatLabel(institution.status)}
+                    </span>
+
+                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-800">
+                      {formatLabel(
+                        normaliseEngagementStage(
+                          institution.outreach_status
+                        ) || institution.outreach_status
+                      )}
                     </span>
                   </div>
 
@@ -333,6 +347,47 @@ export default async function InstitutionPage({
                       value={institution.id}
                     />
 
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-900">
+                        Required engagement pathway
+                      </p>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-amber-950">
+                        Target identified → Contact verified → Intro contact
+                        made → Stage 1 documents sent → Interest expressed →
+                        ILCA requested/approved → ILCA sent
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-amber-800">
+                        Stages cannot be skipped or moved backwards.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="engagement_stage" className={labelClass}>
+                        Current Engagement Stage *
+                      </label>
+
+                      <select
+                        id="engagement_stage"
+                        name="engagement_stage"
+                        required
+                        defaultValue={
+                          normaliseEngagementStage(
+                            institution.outreach_status
+                          ) || ""
+                        }
+                        className={fieldClass}
+                      >
+                        <option value="" disabled>
+                          Select current stage
+                        </option>
+                        {ENGAGEMENT_STAGES.map((stage) => (
+                          <option key={stage.value} value={stage.value}>
+                            {stage.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div>
                       <label
                         htmlFor="interaction_type"
@@ -377,6 +432,65 @@ export default async function InstitutionPage({
                         className={fieldClass}
                       />
                     </div>
+
+                    <fieldset className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <legend className="px-2 text-xs font-black uppercase tracking-[0.14em] text-slate-700">
+                        Materials sent in this engagement
+                      </legend>
+
+                      <p className="mb-4 text-xs leading-5 text-slate-500">
+                        Stage 1 is controlled: all three documents below must
+                        be sent and recorded together.
+                      </p>
+
+                      <div className="space-y-3">
+                        {CONTROLLED_STAGE_ONE_DOCUMENTS.map((document) => (
+                          <label
+                            key={document.field}
+                            className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800"
+                          >
+                            <input
+                              type="checkbox"
+                              name={document.field}
+                              className="mt-0.5 h-4 w-4 accent-amber-500"
+                            />
+                            <span>{document.label}</span>
+                          </label>
+                        ))}
+
+                        <label className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950">
+                          <input
+                            type="checkbox"
+                            name="document_ilca_form"
+                            className="mt-0.5 h-4 w-4 accent-blue-600"
+                          />
+                          <span>
+                            ILCA form — only after ILCA request/approval
+                          </span>
+                        </label>
+
+                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800">
+                          <input
+                            type="checkbox"
+                            name="document_training_information"
+                            className="mt-0.5 h-4 w-4 accent-amber-500"
+                          />
+                          <span>Training/masterclass information</span>
+                        </label>
+
+                        <label className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">
+                          <input
+                            type="checkbox"
+                            name="training_requested"
+                            className="mt-0.5 h-4 w-4 accent-red-600"
+                          />
+                          <span>
+                            Confirm the institution specifically requested
+                            training
+                          </span>
+                        </label>
+                      </div>
+                    </fieldset>
 
                     <div>
                       <label
@@ -434,13 +548,14 @@ export default async function InstitutionPage({
 
                       <div>
                         <label htmlFor="follow_up_at" className={labelClass}>
-                          Follow-up
+                          Follow-up Date *
                         </label>
 
                         <input
                           id="follow_up_at"
                           name="follow_up_at"
                           type="datetime-local"
+                          required
                           className={fieldClass}
                         />
                       </div>
@@ -448,14 +563,15 @@ export default async function InstitutionPage({
 
                     <div>
                       <label htmlFor="next_action" className={labelClass}>
-                        Next Action
+                        Next Action *
                       </label>
 
                       <textarea
                         id="next_action"
                         name="next_action"
                         rows={3}
-                        placeholder="Send ILCA, prepare proposal, call the CEO..."
+                        required
+                        placeholder="Example: Verify the procurement contact by phone"
                         className={`${fieldClass} resize-none`}
                       />
                     </div>

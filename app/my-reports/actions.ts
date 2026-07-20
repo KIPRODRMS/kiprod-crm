@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireTeamMember } from "@/lib/auth";
+import {
+  buildDailyActivitySummary,
+  type DailyActivityCounts,
+} from "@/lib/engagement";
 
 function readField(
   formData: FormData,
@@ -11,6 +15,16 @@ function readField(
   return String(
     formData.get(fieldName) || ""
   ).trim();
+}
+
+function readCount(
+  formData: FormData,
+  fieldName: string
+) {
+  const value = readField(formData, fieldName);
+  const count = Number(value);
+
+  return Number.isInteger(count) && count >= 0 ? count : null;
 }
 
 export async function submitMyDailyReport(
@@ -30,57 +44,102 @@ export async function submitMyDailyReport(
     );
   }
 
+  const institutionsContacted = readField(
+    formData,
+    "institutions_contacted"
+  );
+  const dailySummary = readField(formData, "daily_summary");
+  const newLeadsIdentified = readField(
+    formData,
+    "new_leads_identified"
+  );
+  const meetingsHeld = readField(formData, "meetings_held");
+  const materialsSent = readField(formData, "materials_sent");
+  const followUpSummary = readField(formData, "follow_up_summary");
+  const pipelineProgress = readField(formData, "pipeline_progress");
+  const challenges = readField(formData, "challenges");
+  const supportRequired = readField(formData, "support_required");
+  const tomorrowPriorities = readField(
+    formData,
+    "tomorrow_priorities"
+  );
+
+  if (
+    !institutionsContacted ||
+    !dailySummary ||
+    !newLeadsIdentified ||
+    !materialsSent ||
+    !followUpSummary ||
+    !pipelineProgress ||
+    !challenges ||
+    !tomorrowPriorities
+  ) {
+    redirect(
+      `/my-reports?error=${encodeURIComponent(
+        "Complete every daily accountability field. Enter ‘None’ where there was no activity."
+      )}#daily-report`
+    );
+  }
+
+  const counts: DailyActivityCounts = {
+    newTargets: readCount(formData, "new_targets_count") ?? -1,
+    contactsAttempted: readCount(formData, "contacts_attempted_count") ?? -1,
+    calls: readCount(formData, "calls_count") ?? -1,
+    whatsapp: readCount(formData, "whatsapp_count") ?? -1,
+    emails: readCount(formData, "emails_count") ?? -1,
+    meetings: readCount(formData, "meetings_count") ?? -1,
+    followUps: readCount(formData, "follow_ups_count") ?? -1,
+    stageOnePacks: readCount(formData, "stage_1_packs_count") ?? -1,
+    ilcasSent: readCount(formData, "ilcas_sent_count") ?? -1,
+  };
+
+  if (Object.values(counts).some((count) => count < 0)) {
+    redirect(
+      `/my-reports?error=${encodeURIComponent(
+        "Daily activity counts must be whole numbers of zero or more."
+      )}#daily-report`
+    );
+  }
+
+  const activitySummary = buildDailyActivitySummary(counts, dailySummary);
+  const progressSummary = [
+    "Materials sent:",
+    materialsSent,
+    "",
+    "Follow-ups completed:",
+    followUpSummary,
+    "",
+    "Pipeline movements:",
+    pipelineProgress,
+  ].join("\n");
+
   const report = {
     employee_id: user.id,
     report_date: reportDate,
 
     institutions_contacted:
-      readField(
-        formData,
-        "institutions_contacted"
-      ) || null,
+      institutionsContacted,
 
     activities_completed:
-      readField(
-        formData,
-        "activities_completed"
-      ) || null,
+      activitySummary,
 
     new_leads_identified:
-      readField(
-        formData,
-        "new_leads_identified"
-      ) || null,
+      newLeadsIdentified,
 
     meetings_held:
-      readField(
-        formData,
-        "meetings_held"
-      ) || null,
+      meetingsHeld || null,
 
     opportunities_progressed:
-      readField(
-        formData,
-        "opportunities_progressed"
-      ) || null,
+      progressSummary,
 
     challenges:
-      readField(
-        formData,
-        "challenges"
-      ) || null,
+      challenges,
 
     support_required:
-      readField(
-        formData,
-        "support_required"
-      ) || null,
+      supportRequired || null,
 
     tomorrow_priorities:
-      readField(
-        formData,
-        "tomorrow_priorities"
-      ) || null,
+      tomorrowPriorities,
 
     status: "submitted",
     submitted_at:
@@ -106,6 +165,8 @@ export async function submitMyDailyReport(
 
   revalidatePath("/my-reports");
   revalidatePath("/my-workspace");
+  revalidatePath("/reports");
+  revalidatePath("/management");
 
   redirect(
     `/my-reports?success=${encodeURIComponent(
@@ -240,6 +301,8 @@ export async function submitMyWeeklyReport(
 
   revalidatePath("/my-reports");
   revalidatePath("/my-workspace");
+  revalidatePath("/reports");
+  revalidatePath("/management");
 
   redirect(
     `/my-reports?success=${encodeURIComponent(

@@ -4,252 +4,113 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManagement } from "@/lib/auth";
 
-function readField(
-  formData: FormData,
-  name: string
-) {
-  return String(
-    formData.get(name) || ""
-  ).trim();
+const reportTables = {
+  daily: "daily_reports",
+  weekly: "weekly_reports",
+} as const;
+
+const allowedStatuses = new Set([
+  "submitted",
+  "reviewed",
+  "returned",
+]);
+
+function readField(formData: FormData, name: string) {
+  return String(formData.get(name) || "").trim();
 }
 
-export async function submitDailyReport(
-  formData: FormData
+function reportsRedirect(
+  returnTo: string,
+  key: "success" | "error",
+  message: string
 ) {
-  const { supabase, user } =
-    await requireManagement();
-
-  const reportDate = readField(
-    formData,
-    "report_date"
+  const url = new URL(
+    returnTo.startsWith("/reports") ? returnTo : "/reports",
+    "https://kiprod.local"
   );
 
-  if (!reportDate) {
-    redirect(
-      "/reports?error=Report date is required"
+  if (url.pathname !== "/reports") {
+    url.pathname = "/reports";
+    url.search = "";
+    url.hash = "";
+  }
+
+  url.searchParams.delete("success");
+  url.searchParams.delete("error");
+  url.searchParams.set(key, message);
+
+  redirect(`${url.pathname}${url.search}${url.hash}`);
+}
+
+export async function reviewTeamReport(formData: FormData) {
+  const { supabase } = await requireManagement();
+
+  const reportType = readField(formData, "report_type");
+  const reportId = readField(formData, "report_id");
+  const status = readField(formData, "status");
+  const managerFeedback = readField(
+    formData,
+    "manager_feedback"
+  );
+  const returnTo = readField(formData, "return_to") || "/reports";
+
+  if (!(reportType in reportTables) || !reportId) {
+    reportsRedirect(returnTo, "error", "The selected report is invalid.");
+  }
+
+  if (!allowedStatuses.has(status)) {
+    reportsRedirect(returnTo, "error", "Select a valid review status.");
+  }
+
+  if (status === "returned" && !managerFeedback) {
+    reportsRedirect(
+      returnTo,
+      "error",
+      "Add feedback before returning a report to the team member."
     );
   }
 
-  const report = {
-    employee_id: user.id,
-    report_date: reportDate,
+  const table = reportTables[reportType as keyof typeof reportTables];
 
-    institutions_contacted:
-      readField(
-        formData,
-        "institutions_contacted"
-      ) || null,
+  const { data: existingReport, error: lookupError } = await supabase
+    .from(table)
+    .select("id")
+    .eq("id", reportId)
+    .maybeSingle();
 
-    activities_completed:
-      readField(
-        formData,
-        "activities_completed"
-      ) || null,
-
-    new_leads_identified:
-      readField(
-        formData,
-        "new_leads_identified"
-      ) || null,
-
-    meetings_held:
-      readField(
-        formData,
-        "meetings_held"
-      ) || null,
-
-    opportunities_progressed:
-      readField(
-        formData,
-        "opportunities_progressed"
-      ) || null,
-
-    challenges:
-      readField(
-        formData,
-        "challenges"
-      ) || null,
-
-    support_required:
-      readField(
-        formData,
-        "support_required"
-      ) || null,
-
-    tomorrow_priorities:
-      readField(
-        formData,
-        "tomorrow_priorities"
-      ) || null,
-
-    status: "submitted",
-    submitted_at:
-      new Date().toISOString(),
-    updated_at:
-      new Date().toISOString(),
-  };
+  if (lookupError || !existingReport) {
+    reportsRedirect(
+      returnTo,
+      "error",
+      lookupError?.message || "The report could not be found."
+    );
+  }
 
   const { error } = await supabase
-    .from("daily_reports")
-    .upsert(report, {
-      onConflict:
-        "employee_id,report_date",
-    });
+    .from(table)
+    .update({
+      status,
+      manager_feedback: managerFeedback || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", reportId);
 
   if (error) {
-    redirect(
-      `/reports?error=${encodeURIComponent(
-        error.message
-      )}`
-    );
+    reportsRedirect(returnTo, "error", error.message);
   }
 
-  revalidatePath("/");
-  revalidatePath("/management");
   revalidatePath("/reports");
+  revalidatePath("/management");
   revalidatePath("/my-reports");
   revalidatePath("/my-workspace");
 
-  redirect(
-    `/reports?success=${encodeURIComponent(
-      "Daily report submitted successfully"
-    )}`
-  );
-}
-
-export async function submitWeeklyReport(
-  formData: FormData
-) {
-  const { supabase, user } =
-    await requireManagement();
-
-  const weekStart = readField(
-    formData,
-    "week_start"
-  );
-
-  const weekEnd = readField(
-    formData,
-    "week_end"
-  );
-
-  if (!weekStart || !weekEnd) {
-    redirect(
-      "/reports?error=Week start and week end dates are required"
-    );
-  }
-
-  if (
-    new Date(weekEnd).getTime() <
-    new Date(weekStart).getTime()
-  ) {
-    redirect(
-      "/reports?error=Week end cannot be before week start"
-    );
-  }
-
-  const report = {
-    employee_id: user.id,
-    week_start: weekStart,
-    week_end: weekEnd,
-
-    weekly_objectives:
-      readField(
-        formData,
-        "weekly_objectives"
-      ) || null,
-
-    work_completed:
-      readField(
-        formData,
-        "work_completed"
-      ) || null,
-
-    institutions_engaged:
-      readField(
-        formData,
-        "institutions_engaged"
-      ) || null,
-
-    pipeline_progress:
-      readField(
-        formData,
-        "pipeline_progress"
-      ) || null,
-
-    opportunities_created:
-      readField(
-        formData,
-        "opportunities_created"
-      ) || null,
-
-    proposals_sent:
-      readField(
-        formData,
-        "proposals_sent"
-      ) || null,
-
-    wins_and_achievements:
-      readField(
-        formData,
-        "wins_and_achievements"
-      ) || null,
-
-    delays_and_challenges:
-      readField(
-        formData,
-        "delays_and_challenges"
-      ) || null,
-
-    lessons_learned:
-      readField(
-        formData,
-        "lessons_learned"
-      ) || null,
-
-    next_week_priorities:
-      readField(
-        formData,
-        "next_week_priorities"
-      ) || null,
-
-    support_required:
-      readField(
-        formData,
-        "support_required"
-      ) || null,
-
-    status: "submitted",
-    submitted_at:
-      new Date().toISOString(),
-    updated_at:
-      new Date().toISOString(),
-  };
-
-  const { error } = await supabase
-    .from("weekly_reports")
-    .upsert(report, {
-      onConflict:
-        "employee_id,week_start",
-    });
-
-  if (error) {
-    redirect(
-      `/reports?error=${encodeURIComponent(
-        error.message
-      )}`
-    );
-  }
-
-  revalidatePath("/");
-  revalidatePath("/management");
-  revalidatePath("/reports");
-  revalidatePath("/my-reports");
-  revalidatePath("/my-workspace");
-
-  redirect(
-    `/reports?success=${encodeURIComponent(
-      "Weekly report submitted successfully"
-    )}`
+  reportsRedirect(
+    returnTo,
+    "success",
+    status === "reviewed"
+      ? "Report reviewed successfully."
+      : status === "returned"
+        ? "Report returned with management feedback."
+        : "Report moved back to awaiting review."
   );
 }
