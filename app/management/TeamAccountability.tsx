@@ -34,6 +34,31 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatReportRecency(
+  reportDate: string | null | undefined,
+  today: string
+) {
+  if (!reportDate) {
+    return "No recent report";
+  }
+
+  if (reportDate === today) {
+    return "Today";
+  }
+
+  const yesterday = new Date(`${today}T12:00:00+03:00`);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (reportDate === yesterday.toISOString().slice(0, 10)) {
+    return "Yesterday";
+  }
+
+  return new Intl.DateTimeFormat("en-KE", {
+    dateStyle: "medium",
+    timeZone: "Africa/Nairobi",
+  }).format(new Date(`${reportDate}T12:00:00+03:00`));
+}
+
 function isOpenTask(status: string | null) {
   return (
     status !== "completed" &&
@@ -53,6 +78,9 @@ export default async function TeamAccountability() {
     todayStart.getTime() -
       6 * 24 * 60 * 60 * 1000
   );
+  const reportWeekStart = new Date(`${today}T12:00:00+03:00`);
+  reportWeekStart.setDate(reportWeekStart.getDate() - 6);
+  const reportWeekStartDate = reportWeekStart.toISOString().slice(0, 10);
 
   const [
     profilesResult,
@@ -113,9 +141,15 @@ export default async function TeamAccountability() {
     supabase
       .from("daily_reports")
       .select(
-        "employee_id, status, submitted_at"
+        "employee_id, report_date, status, submitted_at"
       )
-      .eq("report_date", today),
+      .gte("report_date", reportWeekStartDate)
+      .order("report_date", {
+        ascending: false,
+      })
+      .order("submitted_at", {
+        ascending: false,
+      }),
   ]);
 
   const profiles =
@@ -132,15 +166,26 @@ export default async function TeamAccountability() {
 
   const teamMembers = profiles.filter(
     (member) =>
-      member.role !== "super_admin"
+      member.role !== "super_admin" &&
+      member.role !== "management"
   );
 
-  const reportMap = new Map(
-    reports.map((report) => [
+  const reportMap = new Map<
+    string,
+    (typeof reports)[number]
+  >();
+  const reportCountMap = new Map<string, number>();
+
+  for (const report of reports) {
+    if (!reportMap.has(report.employee_id)) {
+      reportMap.set(report.employee_id, report);
+    }
+
+    reportCountMap.set(
       report.employee_id,
-      report,
-    ])
-  );
+      (reportCountMap.get(report.employee_id) || 0) + 1
+    );
+  }
 
   const rows = teamMembers.map(
     (member) => {
@@ -220,9 +265,15 @@ export default async function TeamAccountability() {
             opportunity.status === "open"
         ).length;
 
-      const lastActivity =
-        memberInteractions[0]
-          ?.created_at || null;
+      const latestReport = reportMap.get(member.id);
+      const lastInteractionAt = memberInteractions[0]?.created_at || null;
+      const latestReportAt = latestReport?.submitted_at || null;
+      const lastActivity = [lastInteractionAt, latestReportAt]
+        .filter((value): value is string => Boolean(value))
+        .sort(
+          (first, second) =>
+            new Date(second).getTime() - new Date(first).getTime()
+        )[0] || null;
 
       return {
         member,
@@ -239,7 +290,8 @@ export default async function TeamAccountability() {
         overdueTasks:
           overdueTasks.length,
         openOpportunities,
-        report: reportMap.get(member.id),
+        report: latestReport,
+        reportsThisWeek: reportCountMap.get(member.id) || 0,
         lastActivity,
       };
     }
@@ -268,7 +320,7 @@ export default async function TeamAccountability() {
           <p className="mt-1 text-xs leading-5 text-slate-500">
             Track account ownership, contact
             coverage, CRM interactions, tasks,
-            pipeline and today&apos;s report.
+            pipeline and reports from the last 7 days.
           </p>
         </div>
 
@@ -435,16 +487,22 @@ export default async function TeamAccountability() {
                     </td>
 
                     <td className="px-4 py-4">
+                      <p className="font-black text-slate-950">
+                        {row.reportsThisWeek} in 7 days
+                      </p>
                       <span
-                        className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black ${
+                        className={`mt-1 inline-flex rounded-full px-3 py-1 text-[10px] font-black ${
                           reportSubmitted
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-amber-100 text-amber-800"
                         }`}
                       >
                         {reportSubmitted
-                          ? "Submitted"
-                          : "Missing"}
+                          ? `Latest: ${formatReportRecency(
+                              row.report?.report_date,
+                              today
+                            )}`
+                          : "No report in 7 days"}
                       </span>
                     </td>
 

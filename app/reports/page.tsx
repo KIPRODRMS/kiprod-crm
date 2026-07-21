@@ -552,6 +552,13 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     support: params.support,
   };
   const currentUrl = buildReportsHref(currentFilters, { page });
+  const latestReport = reports[0] || null;
+  const latestReportMember = latestReport
+    ? profileMap.get(latestReport.employee_id)
+    : undefined;
+  const latestReportIsDaily = latestReport
+    ? "report_date" in latestReport
+    : false;
 
   return (
     <section className="space-y-6">
@@ -590,7 +597,18 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <article className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
+            Reports Found
+          </p>
+          <p className="mt-2 text-2xl font-black text-emerald-950">
+            {totalReports}
+          </p>
+          <p className="mt-1 text-xs text-emerald-700">
+            {params.view === "daily" ? "Daily" : "Weekly"} reports in this view
+          </p>
+        </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
             Daily Reports Today
@@ -639,6 +657,55 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           </p>
         </article>
       </div>
+
+      {latestReport && (
+        <article className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                Latest Submission
+              </p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">
+                {memberName(latestReportMember)}
+              </h2>
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                {latestReportIsDaily
+                  ? formatDate((latestReport as DailyReport).report_date)
+                  : `${formatDate((latestReport as WeeklyReport).week_start)} — ${formatDate(
+                      (latestReport as WeeklyReport).week_end
+                    )}`}
+                {" · "}Submitted {formatDateTime(latestReport.submitted_at)}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wide ${statusClass(
+                  latestReport.status
+                )}`}
+              >
+                {latestReport.status === "submitted"
+                  ? "Awaiting Review"
+                  : formatLabel(latestReport.status)}
+              </span>
+              <Link
+                href={`${currentUrl}#report-${latestReport.id}`}
+                className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white"
+              >
+                Open Full Report
+              </Link>
+            </div>
+          </div>
+
+          <p className="mt-4 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+            {latestReportIsDaily
+              ? dailyNarrative((latestReport as DailyReport).activities_completed) ||
+                "No activity summary recorded."
+              : (latestReport as WeeklyReport).work_completed ||
+                "No work summary recorded."}
+          </p>
+        </article>
+      )}
 
       <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">

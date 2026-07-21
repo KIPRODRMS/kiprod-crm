@@ -63,6 +63,24 @@ function formatDateTime(
   }).format(new Date(value));
 }
 
+function formatDate(value: string | null) {
+  if (!value) {
+    return "Date not recorded";
+  }
+
+  return new Intl.DateTimeFormat("en-KE", {
+    dateStyle: "medium",
+    timeZone: "Africa/Nairobi",
+  }).format(new Date(`${value}T12:00:00+03:00`));
+}
+
+function getRecentStartDate(today: string) {
+  const date = new Date(`${today}T12:00:00+03:00`);
+  date.setDate(date.getDate() - 6);
+
+  return date.toISOString().slice(0, 10);
+}
+
 function isTaskOverdue({
   dueAt,
   status,
@@ -92,6 +110,7 @@ export default async function ManagementPage() {
   } = await requireManagement();
 
   const today = getNairobiDate();
+  const recentStartDate = getRecentStartDate(today);
 
   const [
     profilesResult,
@@ -191,7 +210,13 @@ export default async function ManagementPage() {
           submitted_at
         `
       )
-      .eq("report_date", today),
+      .gte("report_date", recentStartDate)
+      .order("report_date", {
+        ascending: false,
+      })
+      .order("submitted_at", {
+        ascending: false,
+      }),
 
     supabase
       .from("pipeline_stages")
@@ -219,7 +244,7 @@ export default async function ManagementPage() {
   const tasks =
     tasksResult.data || [];
 
-  const todayReports =
+  const recentDailyReports =
     dailyReportsResult.data || [];
 
   const pipelineStages =
@@ -300,9 +325,23 @@ export default async function ManagementPage() {
   const reportingTeamMembers =
     teamMembers.filter(
       (teamMember) =>
-        teamMember.role !==
-        "super_admin"
+        teamMember.role !== "super_admin" &&
+        teamMember.role !== "management"
     );
+
+  const reportingTeamMemberIds = new Set(
+    reportingTeamMembers.map((teamMember) => teamMember.id)
+  );
+
+  const visibleRecentReports = recentDailyReports.filter((report) =>
+    reportingTeamMemberIds.has(report.employee_id)
+  );
+
+  const todayReports = visibleRecentReports.filter(
+    (report) => report.report_date === today
+  );
+
+  const latestDailyReport = visibleRecentReports[0] || null;
 
   const submittedReportIds = new Set(
     todayReports.map(
@@ -429,6 +468,63 @@ export default async function ManagementPage() {
           {loadError}
         </div>
       )}
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Link
+          href="/reports"
+          className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm transition hover:border-blue-400"
+        >
+          <p className="text-[10px] font-black uppercase tracking-wide text-blue-700">
+            Reports in 7 Days
+          </p>
+          <p className="mt-2 text-3xl font-black text-blue-950">
+            {visibleRecentReports.length}
+          </p>
+          <p className="mt-1 text-xs font-bold text-blue-700">
+            All recent daily submissions
+          </p>
+        </Link>
+
+        <Link
+          href="/reports"
+          className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition hover:border-emerald-400"
+        >
+          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
+            Submitted Today
+          </p>
+          <p className="mt-2 text-3xl font-black text-emerald-950">
+            {todayReports.length}/{reportingTeamMembers.length}
+          </p>
+          <p className="mt-1 text-xs font-bold text-emerald-700">
+            Team members reporting today
+          </p>
+        </Link>
+
+        <Link
+          href="/reports"
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm transition hover:border-amber-400"
+        >
+          <p className="text-[10px] font-black uppercase tracking-wide text-amber-700">
+            Latest Report
+          </p>
+          {latestDailyReport ? (
+            <>
+              <p className="mt-2 truncate text-lg font-black text-amber-950">
+                {profileMap.get(latestDailyReport.employee_id) ||
+                  "KIPROD Team Member"}
+              </p>
+              <p className="mt-1 text-xs font-bold text-amber-800">
+                {formatDate(latestDailyReport.report_date)} ·{" "}
+                {formatDateTime(latestDailyReport.submitted_at)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm font-bold text-amber-800">
+              No report submitted in the last 7 days
+            </p>
+          )}
+        </Link>
+      </div>
 
       <TeamAccountability />
 

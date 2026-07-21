@@ -1086,8 +1086,8 @@ export default function AppFrame({
 
       <div className="min-h-screen lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:px-8">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:gap-4">
+            <div className="order-1 flex min-w-0 shrink-0 items-center gap-2 sm:order-none sm:gap-3">
               <button
                 type="button"
                 aria-label="Open navigation"
@@ -1095,9 +1095,11 @@ export default function AppFrame({
                 onClick={() =>
                   setMobileOpen(true)
                 }
-                className="shrink-0 rounded-xl bg-slate-950 px-3 py-2.5 text-xs font-black text-white transition hover:bg-slate-800 lg:hidden"
+                className="flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl bg-slate-950 text-white transition hover:bg-slate-800 lg:hidden"
               >
-                Menu
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
               </button>
 
               <div className="min-w-0">
@@ -1111,16 +1113,18 @@ export default function AppFrame({
               </div>
             </div>
 
-            <GlobalSearch
-              accessLevel={
-                identity.accessLevel
-              }
-              userId={identity.userId}
-            />
+            <div className="order-3 col-span-2 w-full min-w-0 sm:order-none sm:col-span-1 sm:flex-1">
+              <GlobalSearch
+                accessLevel={
+                  identity.accessLevel
+                }
+                userId={identity.userId}
+              />
+            </div>
 
             <div
               ref={profileMenuRef}
-              className="relative shrink-0"
+              className="relative order-2 shrink-0 justify-self-end sm:order-none"
             >
               <button
                 type="button"
